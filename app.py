@@ -8,6 +8,21 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+st.markdown("""
+<style>
+/* Horizontal scroll on wide tables */
+[data-testid="stDataFrame"] > div { overflow-x: auto; }
+/* Bigger touch targets for selects and radio buttons */
+[data-testid="stSelectbox"] > div,
+[data-testid="stRadio"]     > div { min-height: 44px; }
+/* Tighten chart padding on small screens */
+@media (max-width: 640px) {
+    [data-testid="stPlotlyChart"] { padding: 0 !important; }
+    h2, h3 { font-size: 1.1rem !important; }
+}
+</style>
+""", unsafe_allow_html=True)
+
 _TMC = {"AITC", "AITMC", "TMC", "TRINAMOOL"}
 
 def norm(p):
@@ -169,11 +184,12 @@ def gender_metrics(male, female, third):
     except (TypeError, ValueError, ZeroDivisionError):
         ratio_str = "—"
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Male voters",        fmt(male))
-    c2.metric("Female voters",      fmt(female))
+    c1, c2 = st.columns(2)
+    c1.metric("Male voters",         fmt(male))
+    c2.metric("Female voters",       fmt(female))
+    c3, c4 = st.columns(2)
     c3.metric("Third-gender voters", fmt(third))
-    c4.metric("M : F ratio (2026)", ratio_str)
+    c4.metric("M : F ratio (2026)",  ratio_str)
 
 
 # ── Demography helper ──────────────────────────────────────────────────────────
@@ -191,25 +207,22 @@ def show_demography(election_district):
     note = f" (census data for undivided {dem_district})" if election_district != dem_district else ""
     st.caption(f"District: **{dem_district}**{note}")
 
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        st.dataframe(
-            row.reset_index().rename(columns={"index": "Religion", dem_district: "%"}),
-            use_container_width=True, hide_index=True,
-        )
-    with c2:
-        fig = px.pie(
-            values=row.values,
-            names=row.index,
-            color=row.index,
-            color_discrete_map={
-                "Hindu (%)": "#FF9933", "Muslim (%)": "#009900",
-                "Christian (%)": "#3399FF", "Others (%)": "#999999",
-            },
-            title=f"Religious composition — {dem_district}",
-        )
-        fig.update_layout(height=280, margin=dict(t=40, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+    st.dataframe(
+        row.reset_index().rename(columns={"index": "Religion", dem_district: "%"}),
+        use_container_width=True, hide_index=True,
+    )
+    fig = px.pie(
+        values=row.values,
+        names=row.index,
+        color=row.index,
+        color_discrete_map={
+            "Hindu (%)": "#FF9933", "Muslim (%)": "#009900",
+            "Christian (%)": "#3399FF", "Others (%)": "#999999",
+        },
+        title=f"Religious composition — {dem_district}",
+    )
+    fig.update_layout(height=280, margin=dict(t=40, b=0))
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # ── Constituency view ──────────────────────────────────────────────────────────
@@ -253,8 +266,8 @@ def show_constituency(row):
     st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
 
     if bar_data:
-        c1, c2 = st.columns(2)
-        with c1:
+        tab1, tab2 = st.tabs(["TMC vs BJP Trend", "2024 Vote Breakdown"])
+        with tab1:
             fig = px.bar(
                 pd.DataFrame(bar_data), x="Year", y="Vote %", color="Party",
                 barmode="group",
@@ -263,10 +276,9 @@ def show_constituency(row):
             )
             fig.update_layout(yaxis_range=[0, 100], height=360)
             st.plotly_chart(fig, use_container_width=True)
-        with c2:
+        with tab2:
             pie_rows = []
             yr = "24"
-            tv24 = row.get(f"total_votes_{yr}")
             for key, label in [(f"tmc_{yr}", "TMC"), (f"bjp_{yr}", "BJP")]:
                 v = row.get(key)
                 if pd.notna(v):
@@ -361,6 +373,26 @@ def show_district(df, district):
     show_demography(district)
 
 
+# ── Shared impact computation ─────────────────────────────────────────────────
+
+def compute_impacts(df):
+    def _n(v):
+        try:    return float(v)
+        except: return 0.0
+
+    imp21, imp24 = [], []
+    for _, r in df.iterrows():
+        tmc21 = _n(r.get("tmc_21")); ru21 = max(_n(r.get("bjp_21")), _n(r.get("v1_21"))); mar21 = tmc21 - ru21
+        imp21.append(round((_n(r.get("electors_21")) - _n(r.get("electors_26"))) / mar21, 2) if mar21 > 0 else None)
+        tmc24 = _n(r.get("tmc_24")); bjp24 = _n(r.get("bjp_24")); ru24 = max(bjp24, _n(r.get("v1_24"))); mar24 = tmc24 - ru24
+        imp24.append(round((_n(r.get("electors_24")) - _n(r.get("electors_26"))) / mar24, 2) if (tmc24 > bjp24 and mar24 > 0) else None)
+
+    out = df.copy()
+    out["imp21"] = imp21
+    out["imp24"] = imp24
+    return out
+
+
 # ── State summary view ─────────────────────────────────────────────────────────
 
 def show_state(df):
@@ -406,22 +438,93 @@ def show_state(df):
         fig.update_layout(yaxis_range=[0, 100])
         st.plotly_chart(fig, use_container_width=True)
 
+    work = compute_impacts(df)
+
+    # ── Build display table ───────────────────────────────────────────────────
     st.markdown("**All 294 Constituencies**")
     cols = ["ac_no", "ac_name", "district"]
     renames = {"ac_no": "AC No", "ac_name": "Constituency", "district": "District"}
     for yr, full, _ in YEARS:
-        cols += [f"total_votes_{yr}", f"tmc_{yr}", f"bjp_{yr}"]
+        cols += [f"electors_{yr}", f"total_votes_{yr}", f"tmc_{yr}", f"bjp_{yr}"]
         renames.update({
-            f"total_votes_{yr}": f"{full} Votes",
-            f"tmc_{yr}": f"{full} TMC",
-            f"bjp_{yr}": f"{full} BJP",
+            f"electors_{yr}":    f"{full} Total Voters",
+            f"total_votes_{yr}": f"{full} Votes Cast",
+            f"tmc_{yr}":         f"{full} TMC",
+            f"bjp_{yr}":         f"{full} BJP",
         })
-    cols += ["votes_26", "electors_26"]
-    renames.update({"votes_26": "2026 Votes Cast", "electors_26": "2026 Voters"})
+    cols += ["electors_26", "votes_26", "imp21", "imp24"]
+    renames.update({
+        "electors_26": "2026 Total Voters",
+        "votes_26":    "2026 Votes Cast",
+        "imp21":       "Vote Drop / Margin (21→26)",
+        "imp24":       "Vote Drop / Margin (24→26)",
+    })
 
-    disp = df[cols].rename(columns=renames).copy()
+    disp = work[cols].rename(columns=renames).copy()
     for c in list(renames.values())[3:]:
         disp[c] = pd.to_numeric(disp[c], errors="coerce")
+    st.dataframe(disp, use_container_width=True, hide_index=True)
+
+    with st.expander("Formula explanation"):
+        st.markdown("""
+**Vote Drop / Margin (21→26)** — TMC-won seats in 2021 Vidhan Sabha only
+```
+Runner-up₂₁    = max(BJP Votes₂₁,  Top Other Party Votes₂₁)
+TMC Margin₂₁   = TMC Votes₂₁ − Runner-up₂₁          [only shown when > 0]
+Voter Reduction = Total Voters 2021 − Total Voters 2026
+Ratio           = Voter Reduction / TMC Margin₂₁
+```
+Interpretation: if every voter lost from the rolls since 2021 was a TMC voter, a ratio **> 1.0**
+means the loss exceeds the margin and TMC would lose the seat. Blank = TMC did not win in 2021.
+
+---
+
+**Vote Drop / Margin (24→26)** — 2024 assembly segments (from Lok Sabha data) where TMC > BJP only
+```
+Runner-up₂₄    = max(BJP Votes₂₄,  Top Other Party Votes₂₄)
+TMC Margin₂₄   = TMC Votes₂₄ − Runner-up₂₄          [only shown when TMC > BJP]
+Voter Reduction = Total Voters 2024 − Total Voters 2026
+Ratio           = Voter Reduction / TMC Margin₂₄
+```
+Same interpretation. Blank = TMC did not lead BJP in that segment in 2024.
+        """)
+
+
+# ── SIR Impact view ───────────────────────────────────────────────────────────
+
+def show_sir_impact(df):
+    st.subheader("SIR Impact — Voter Roll Change vs TMC Margin (2021 vs 2026)")
+    st.caption(
+        "Shows only seats TMC won in 2021.  "
+        "Ratio = (Total Voters 2021 − Total Voters 2026) / TMC Margin 2021.  "
+        "Ratio > 1.0 means the voter roll drop exceeds the margin."
+    )
+
+    work = compute_impacts(df)
+
+    cols = ["ac_no", "ac_name", "district", "imp21",
+            "electors_21", "total_votes_21", "tmc_21", "bjp_21",
+            "electors_26", "votes_26"]
+    renames = {
+        "ac_no":          "AC No",
+        "ac_name":        "Constituency",
+        "district":       "District",
+        "imp21":          "Vote Drop / Margin (21→26)",
+        "electors_21":    "Total Voters 2021",
+        "total_votes_21": "Votes Cast 2021",
+        "tmc_21":         "TMC 2021",
+        "bjp_21":         "BJP 2021",
+        "electors_26":    "Total Voters 2026",
+        "votes_26":       "Votes Cast 2026",
+    }
+
+    disp = work[cols].rename(columns=renames).copy()
+    for c in list(renames.values())[3:]:
+        disp[c] = pd.to_numeric(disp[c], errors="coerce")
+
+    # Default sort: highest (most at-risk) first; non-TMC seats sink to bottom
+    disp = disp.sort_values("Vote Drop / Margin (21→26)", ascending=False, na_position="last")
+
     st.dataframe(disp, use_container_width=True, hide_index=True)
 
 
@@ -443,7 +546,7 @@ def main():
 
     with st.sidebar:
         st.header("Select View")
-        view = st.radio("", ["State Summary", "By District", "By Constituency"],
+        view = st.radio("", ["State Summary", "SIR Impact", "By District", "By Constituency"],
                         label_visibility="collapsed")
 
         sel_dist, sel_const = None, None
@@ -459,6 +562,8 @@ def main():
 
     if view == "State Summary":
         show_state(df)
+    elif view == "SIR Impact":
+        show_sir_impact(df)
     elif view == "By District" and sel_dist:
         show_district(df, sel_dist)
     elif view == "By Constituency" and sel_const:
