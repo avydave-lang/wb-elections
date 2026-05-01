@@ -463,6 +463,7 @@ def show_state(df):
     disp = work[cols].rename(columns=renames).copy()
     for c in list(renames.values())[3:]:
         disp[c] = pd.to_numeric(disp[c], errors="coerce")
+    disp = disp.sort_values("AC No")
     st.dataframe(disp, use_container_width=True, hide_index=True)
 
     with st.expander("Formula explanation"):
@@ -490,42 +491,131 @@ Same interpretation. Blank = TMC did not lead BJP in that segment in 2024.
         """)
 
 
-# ── SIR Impact view ───────────────────────────────────────────────────────────
+# ── SIR Impact shared helper ───────────────────────────────────────────────────
 
-def show_sir_impact(df):
-    st.subheader("SIR Impact — Voter Roll Change vs TMC Margin (2021 vs 2026)")
+def _risk_band(ratio):
+    if ratio is None or pd.isna(ratio): return None
+    if ratio > 1.0:  return "At Risk"
+    if ratio > 0.5:  return "Vulnerable"
+    if ratio >= 0:   return "Safe"
+    return "Voter Roll Grew"
+
+_BAND_ORDER  = ["At Risk", "Vulnerable", "Safe", "Voter Roll Grew"]
+_BAND_COLORS = {"At Risk": "#D62728", "Vulnerable": "#FF7F0E",
+                "Safe": "#2CA02C",    "Voter Roll Grew": "#1F77B4"}
+
+
+def _show_sir(work, imp_col, yr, arrow, seat_label, election_label):
+    """
+    Generic SIR impact view.
+      imp_col      : "imp21" or "imp24"
+      yr           : "21"   or "24"
+      arrow        : "21→26" or "24→26"
+      seat_label   : label for the first metric card
+      election_label: shown in the info box sentence
+    """
+    seats = work[work[imp_col].notna()].copy()
+    seats["band"] = seats[imp_col].apply(_risk_band)
+    band_counts   = seats["band"].value_counts()
+    total         = len(seats)
+
+    if total == 0:
+        st.warning("No seats match the filter for this comparison.")
+        return
+
+    at_risk    = band_counts.get("At Risk",        0)
+    vulnerable = band_counts.get("Vulnerable",     0)
+    safe       = band_counts.get("Safe",           0)
+    grew       = band_counts.get("Voter Roll Grew",0)
+
     st.caption(
-        "Shows only seats TMC won in 2021.  "
-        "Ratio = (Total Voters 2021 − Total Voters 2026) / TMC Margin 2021.  "
-        "Ratio > 1.0 means the voter roll drop exceeds the margin."
+        f"Ratio = (Total Voters {yr[:2]}20{yr[1:]} − Total Voters 2026) / TMC Margin {yr[:2]}20{yr[1:]}.  "
+        "Ratio > 1.0 means the voter roll drop exceeds the winning margin."
     )
 
-    work = compute_impacts(df)
+    # Metrics
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(seat_label,               total)
+    c2.metric("At Risk  (ratio > 1)",   at_risk,
+              delta=f"{at_risk/total*100:.0f}% of seats",    delta_color="inverse")
+    c3.metric("Vulnerable  (0.5–1.0)",  vulnerable,
+              delta=f"{vulnerable/total*100:.0f}% of seats", delta_color="inverse")
+    c4.metric("Safe or Grew",           safe + grew,
+              delta=f"{(safe+grew)/total*100:.0f}% of seats", delta_color="normal")
 
-    cols = ["ac_no", "ac_name", "district", "imp21",
-            "electors_21", "total_votes_21", "tmc_21", "bjp_21",
+    # Distribution bar chart
+    band_df = (seats["band"].value_counts()
+               .reindex(_BAND_ORDER).fillna(0).reset_index())
+    band_df.columns = ["Risk Band", "Seats"]
+    fig = px.bar(
+        band_df, x="Seats", y="Risk Band", orientation="h",
+        color="Risk Band", color_discrete_map=_BAND_COLORS,
+        text="Seats", title=f"TMC seat risk distribution ({arrow})",
+    )
+    fig.update_layout(showlegend=False, height=220,
+                      margin=dict(t=40, b=10, l=10, r=10),
+                      yaxis=dict(categoryorder="array", categoryarray=_BAND_ORDER))
+    fig.update_traces(textposition="outside")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Statewide drop note
+    total_drop = (pd.to_numeric(seats[f"electors_{yr}"], errors="coerce")
+                - pd.to_numeric(seats["electors_26"],    errors="coerce")).sum()
+    total_margin = (
+        pd.to_numeric(seats[f"tmc_{yr}"], errors="coerce")
+        - seats.apply(lambda r: max(
+              pd.to_numeric(r.get(f"bjp_{yr}"), errors="coerce") or 0,
+              pd.to_numeric(r.get(f"v1_{yr}"),  errors="coerce") or 0,
+          ), axis=1)
+    ).sum()
+    pct = total_drop / total_margin * 100 if total_margin else 0
+    st.info(
+        f"Across all {total} {election_label} seats, the voter roll changed by "
+        f"**{fmt(total_drop)}** voters between {yr[:2]}20{yr[1:]} and 2026 — "
+        f"equivalent to **{pct:.1f}%** of the combined TMC winning margin across those seats."
+    )
+
+    st.divider()
+
+    # Detail table
+    imp_label = f"Vote Drop / Margin ({arrow})"
+    cols = ["ac_no", "ac_name", "district", imp_col,
+            f"electors_{yr}", f"total_votes_{yr}", f"tmc_{yr}", f"bjp_{yr}",
             "electors_26", "votes_26"]
+    fy = f"20{yr}" if len(yr) == 2 else yr
     renames = {
-        "ac_no":          "AC No",
-        "ac_name":        "Constituency",
-        "district":       "District",
-        "imp21":          "Vote Drop / Margin (21→26)",
-        "electors_21":    "Total Voters 2021",
-        "total_votes_21": "Votes Cast 2021",
-        "tmc_21":         "TMC 2021",
-        "bjp_21":         "BJP 2021",
-        "electors_26":    "Total Voters 2026",
-        "votes_26":       "Votes Cast 2026",
+        "ac_no":              "AC No",
+        "ac_name":            "Constituency",
+        "district":           "District",
+        imp_col:              imp_label,
+        f"electors_{yr}":     f"Total Voters {fy}",
+        f"total_votes_{yr}":  f"Votes Cast {fy}",
+        f"tmc_{yr}":          f"TMC {fy}",
+        f"bjp_{yr}":          f"BJP {fy}",
+        "electors_26":        "Total Voters 2026",
+        "votes_26":           "Votes Cast 2026",
     }
-
     disp = work[cols].rename(columns=renames).copy()
     for c in list(renames.values())[3:]:
         disp[c] = pd.to_numeric(disp[c], errors="coerce")
-
-    # Default sort: highest (most at-risk) first; non-TMC seats sink to bottom
-    disp = disp.sort_values("Vote Drop / Margin (21→26)", ascending=False, na_position="last")
-
+    disp = disp.sort_values(imp_label, ascending=False, na_position="last")
     st.dataframe(disp, use_container_width=True, hide_index=True)
+
+
+def show_sir_impact(df):
+    st.subheader("SIR Impact — Voter Roll Change vs TMC Margin (2021 vs 2026)")
+    _show_sir(compute_impacts(df),
+              imp_col="imp21", yr="21", arrow="21→26",
+              seat_label="TMC seats won (2021)",
+              election_label="TMC-won 2021 Vidhan Sabha")
+
+
+def show_sir_impact_2024(df):
+    st.subheader("SIR Impact — Voter Roll Change vs TMC Margin (2024 vs 2026)")
+    _show_sir(compute_impacts(df),
+              imp_col="imp24", yr="24", arrow="24→26",
+              seat_label="Segments TMC led BJP (2024 LS)",
+              election_label="TMC-leading 2024 Lok Sabha assembly segment")
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -546,7 +636,7 @@ def main():
 
     with st.sidebar:
         st.header("Select View")
-        view = st.radio("", ["State Summary", "SIR Impact", "By District", "By Constituency"],
+        view = st.radio("", ["State Summary", "SIR Impact 21→26", "SIR Impact 24→26", "By District", "By Constituency"],
                         label_visibility="collapsed")
 
         sel_dist, sel_const = None, None
@@ -562,8 +652,10 @@ def main():
 
     if view == "State Summary":
         show_state(df)
-    elif view == "SIR Impact":
+    elif view == "SIR Impact 21→26":
         show_sir_impact(df)
+    elif view == "SIR Impact 24→26":
+        show_sir_impact_2024(df)
     elif view == "By District" and sel_dist:
         show_district(df, sel_dist)
     elif view == "By Constituency" and sel_const:
