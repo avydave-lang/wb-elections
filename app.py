@@ -112,6 +112,22 @@ def load_demography():
     return df   # index = demography district name, cols = Hindu(%), Muslim(%), …
 
 
+@st.cache_data(show_spinner="Reading constituency demography …")
+def load_demography_ac():
+    df = pd.read_csv("demography new.csv")
+    df.columns = df.columns.str.strip()
+    df = df.rename(columns={
+        "Constituency No.": "ac_no",
+        "Hindu %":           "hindu_pct",
+        "Muslim %":          "muslim_pct",
+        "Christian %":       "christian_pct",
+        "Buddhist / Other %": "buddhist_pct",
+        "Majority Religion": "majority",
+    })
+    df["ac_no"] = pd.to_numeric(df["ac_no"], errors="coerce")
+    return df[["ac_no", "hindu_pct", "muslim_pct", "christian_pct", "buddhist_pct", "majority"]]
+
+
 # ── Aggregation ────────────────────────────────────────────────────────────────
 
 def agg_year(df, has_nota):
@@ -152,6 +168,7 @@ def load_master():
             columns={c: f"{c}_{yr}" for c in agg.columns if c not in ("ac_no", "ac_name")}
         )
         m = m.merge(tmp, on="ac_no", how="left")
+    m = m.merge(load_demography_ac(), on="ac_no", how="left")
     return m
 
 
@@ -172,6 +189,15 @@ def pct(n, d):
 
 
 YEARS = [("19", "2019", "Lok Sabha"), ("21", "2021", "Vidhan Sabha"), ("24", "2024", "Lok Sabha")]
+
+_DEMO_COLS   = ["hindu_pct", "muslim_pct", "christian_pct", "buddhist_pct", "majority"]
+_DEMO_LABELS = {
+    "hindu_pct":    "Hindu %",
+    "muslim_pct":   "Muslim %",
+    "christian_pct":"Christian %",
+    "buddhist_pct": "Buddhist/Other %",
+    "majority":     "Majority",
+}
 
 
 # ── Gender helpers ─────────────────────────────────────────────────────────────
@@ -299,7 +325,33 @@ def show_constituency(row):
     st.divider()
     st.markdown("#### 2026 Voter Demographics")
     gender_metrics(row.get("male_26"), row.get("female_26"), row.get("third_26"))
-    show_demography(row["district"])
+
+    st.markdown("#### Religious Demography")
+    dem_vals = {lbl: row.get(col) for col, lbl in _DEMO_LABELS.items()}
+    if any(pd.notna(v) for v in dem_vals.values()):
+        d1, d2 = st.columns(2)
+        with d1:
+            st.dataframe(
+                pd.DataFrame(list(dem_vals.items()), columns=["Religion / Category", "Share"]),
+                use_container_width=True, hide_index=True,
+            )
+        with d2:
+            pie_data = {k: float(str(v).replace("%","")) for k, v in dem_vals.items()
+                        if k != "Majority" and pd.notna(v)}
+            if pie_data:
+                fig = px.pie(
+                    values=list(pie_data.values()), names=list(pie_data.keys()),
+                    color=list(pie_data.keys()),
+                    color_discrete_map={
+                        "Hindu %": "#FF9933", "Muslim %": "#009900",
+                        "Christian %": "#3399FF", "Buddhist/Other %": "#999999",
+                    },
+                    title=f"Religious composition — {row['ac_name']}",
+                )
+                fig.update_layout(height=280, margin=dict(t=40, b=0))
+                st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.caption("No constituency-level demography data available.")
 
 
 # ── District view ──────────────────────────────────────────────────────────────
@@ -361,6 +413,8 @@ def show_district(df, district):
             row[f"TMC {full}%"] = pct(tmc, tv)
             row[f"BJP {full}%"] = pct(bjp, tv)
         row["2026 Turnout"] = pct(r.get("votes_26"), r.get("electors_26"))
+        for col, lbl in _DEMO_LABELS.items():
+            row[lbl] = r.get(col)
         rows.append(row)
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
@@ -452,17 +506,20 @@ def show_state(df):
             f"tmc_{yr}":         f"{full} TMC",
             f"bjp_{yr}":         f"{full} BJP",
         })
-    cols += ["electors_26", "votes_26", "imp21", "imp24"]
+    cols += ["electors_26", "votes_26", "imp21", "imp24"] + _DEMO_COLS
     renames.update({
         "electors_26": "2026 Total Voters",
         "votes_26":    "2026 Votes Cast",
         "imp21":       "Vote Drop / Margin (21→26)",
         "imp24":       "Vote Drop / Margin (24→26)",
+        **_DEMO_LABELS,
     })
 
+    _skip = {"AC No", "Constituency", "District"} | set(_DEMO_LABELS.values())
     disp = work[cols].rename(columns=renames).copy()
-    for c in list(renames.values())[3:]:
-        disp[c] = pd.to_numeric(disp[c], errors="coerce")
+    for c in disp.columns:
+        if c not in _skip:
+            disp[c] = pd.to_numeric(disp[c], errors="coerce")
     disp = disp.sort_values("AC No")
     st.dataframe(disp, use_container_width=True, hide_index=True)
 
@@ -581,7 +638,7 @@ def _show_sir(work, imp_col, yr, arrow, seat_label, election_label):
     imp_label = f"Vote Drop / Margin ({arrow})"
     cols = ["ac_no", "ac_name", "district", imp_col,
             f"electors_{yr}", f"total_votes_{yr}", f"tmc_{yr}", f"bjp_{yr}",
-            "electors_26", "votes_26"]
+            "electors_26", "votes_26"] + _DEMO_COLS
     fy = f"20{yr}" if len(yr) == 2 else yr
     renames = {
         "ac_no":              "AC No",
@@ -594,10 +651,14 @@ def _show_sir(work, imp_col, yr, arrow, seat_label, election_label):
         f"bjp_{yr}":          f"BJP {fy}",
         "electors_26":        "Total Voters 2026",
         "votes_26":           "Votes Cast 2026",
+        **_DEMO_LABELS,
     }
+    cols = [c for c in cols if c in work.columns]
+    _skip = {"AC No", "Constituency", "District"} | set(_DEMO_LABELS.values())
     disp = work[cols].rename(columns=renames).copy()
-    for c in list(renames.values())[3:]:
-        disp[c] = pd.to_numeric(disp[c], errors="coerce")
+    for c in disp.columns:
+        if c not in _skip:
+            disp[c] = pd.to_numeric(disp[c], errors="coerce")
     disp = disp.sort_values(imp_label, ascending=False, na_position="last")
     st.dataframe(disp, use_container_width=True, hide_index=True)
 
@@ -618,6 +679,245 @@ def show_sir_impact_2024(df):
               election_label="TMC-leading 2024 Lok Sabha assembly segment")
 
 
+# ── Possibilities view ────────────────────────────────────────────────────────
+
+def _parse_m_pct(v):
+    try:
+        return float(str(v).replace("%", "").strip())
+    except Exception:
+        return 0.0
+
+
+def _classify_seat_24(row):
+    """Return (classification, reason) using 2024 results + 2026 voter roll data."""
+    def _n(v):
+        try: return float(v)
+        except: return 0.0
+
+    tmc24 = _n(row.get("tmc_24"))
+    bjp24 = _n(row.get("bjp_24"))
+    v1_24 = _n(row.get("v1_24"))
+    el24  = _n(row.get("electors_24"))
+    tv24  = _n(row.get("total_votes_24"))
+    el26  = _n(row.get("electors_26"))
+    tv26  = _n(row.get("votes_26"))
+    m     = _parse_m_pct(row.get("muslim_pct"))
+
+    tmc_won = tmc24 > 0 and tmc24 > bjp24
+    bjp_won = bjp24 > 0 and bjp24 > tmc24
+
+    if not (tmc_won or bjp_won) or (el24 == 0 and tv24 == 0):
+        return "No Data", "Insufficient 2024 data"
+
+    tmc_margin = max(0.0, tmc24 - max(bjp24, v1_24)) if tmc_won else 0.0
+    bjp_margin = max(0.0, bjp24 - max(tmc24, v1_24)) if bjp_won else 0.0
+    margin_24  = tmc_margin if tmc_won else bjp_margin
+
+    sir_deletion  = max(0.0, el24 - el26)
+    vote_increase = max(0.0, tv26 - tv24)
+
+    # Priority rules — first match wins
+
+    # R0: >40% Muslim → TMC always, regardless of 2024 winner
+    if m > 40:
+        return "TMC", f"More than 40% Muslim — TMC stronghold"
+
+    if tmc_won and tmc_margin > 0 and vote_increase >= 2 * tmc_margin:
+        return "BJP possible", "Vote increase double of TMC margin"
+
+    if m >= 30 and tmc_won:
+        return "TMC", f"{m:.0f}% Muslim and TMC won in 2024"
+
+    if tmc_won and tmc_margin > 0 and sir_deletion >= 2 * tmc_margin:
+        return "BJP possible", "SIR deletion more than double of TMC margin"
+
+    if tmc_won and tmc_margin > 0 and vote_increase > tmc_margin and sir_deletion > tmc_margin:
+        return "BJP possible", "Vote increase and SIR deletion both higher than TMC margin"
+
+    if 20 <= m <= 25 and margin_24 > 0 and sir_deletion > margin_24:
+        return "BJP possible", f"M population {m:.0f}%. SIR deletion higher than 24 margin"
+
+    if 30 <= m <= 40 and bjp_won and bjp_margin > 0 and sir_deletion >= 2 * bjp_margin:
+        return "BJP possible", f"30-40% M but BJP win in 2024 and high SIR deletions — double of BJP margin"
+
+    if 25 < m < 30 and margin_24 > 0 and sir_deletion > margin_24:
+        return "BJP possible", f"M population {m:.0f}%. SIR deletion higher than 24 margin"
+
+    if 30 <= m <= 40 and bjp_won and bjp_margin > 0 and sir_deletion > bjp_margin:
+        return "BJP possible", f"30-40% M but BJP win in 2024 and high SIR deletions"
+
+    if bjp_won and m < 30:
+        return "BJP possible", "BJP win 2024 and M population less than 30%"
+
+    if tmc_won and tmc_margin > 0 and sir_deletion < tmc_margin and vote_increase < tmc_margin:
+        return "TMC", "Leaning TMC — high 2024 margin, lower SIR deletion and vote increase vs margin"
+
+    if tmc_won and m > 20:
+        return "TMC", "TMC Won in 2024 and more than 20% M"
+
+    if m < 10 and tmc_won and tmc_margin > 0 and sir_deletion > tmc_margin:
+        return "BJP possible", "Less than 10%M and deletion higher than TMC 2024 margin"
+
+    if m < 10 and tmc_won and tmc_margin > 0 and vote_increase > tmc_margin:
+        return "BJP possible", "Less than 10%M and voting increase higher than TMC 2024 margin"
+
+    if m < 15 and tmc_won and tmc_margin > 0 and sir_deletion > tmc_margin:
+        return "BJP possible", "Less than 15%M and SIR deletion higher than TMC 2024 margin"
+
+    if m < 15 and tmc_won and tmc_margin > 0 and vote_increase > tmc_margin:
+        return "BJP possible", "Less than 15%M and voting increase higher than TMC 2024 margin"
+
+    if m < 20 and tmc_won and tmc_margin > 0 and sir_deletion > tmc_margin:
+        return "BJP possible", "Less than 20%M and SIR deletion higher than TMC 2024 margin"
+
+    if m < 20 and tmc_won and tmc_margin > 0 and vote_increase > tmc_margin:
+        return "BJP possible", "Less than 20%M and voting increase higher than TMC 2024 margin"
+
+    if tmc_won:
+        return "TMC", "TMC won 2024 — no significant risk factors"
+
+    if bjp_won:
+        return "BJP possible", "BJP won 2024"
+
+    return "No Data", "Cannot classify"
+
+
+def show_possibilities(df):
+    st.subheader("2026 Possibilities — Seat Outlook Based on 2024 & SIR Data")
+    st.caption(
+        "Rules use 2024 Lok Sabha assembly-segment results + 2026 voter roll change. "
+        "Applied in priority order — first matching rule determines the classification. "
+        "**BJP possible** = BJP is competitive or favoured; **TMC** = TMC expected to hold."
+    )
+
+    work = compute_impacts(df).copy()
+    classifs, reasons = [], []
+    for _, row in work.iterrows():
+        c, r = _classify_seat_24(row)
+        classifs.append(c)
+        reasons.append(r)
+    work["classification"] = classifs
+    work["reason"] = reasons
+
+    tmc_n    = (work["classification"] == "TMC").sum()
+    bjp_n    = (work["classification"] == "BJP possible").sum()
+    nodata_n = (work["classification"] == "No Data").sum()
+    total    = len(work)
+
+    # ── Summary metrics ────────────────────────────────────────────────────────
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Constituencies", total)
+    c2.metric("TMC Likely", tmc_n,
+              delta=f"{tmc_n/total*100:.0f}% of seats", delta_color="normal")
+    c3.metric("BJP Possible", bjp_n,
+              delta=f"{bjp_n/total*100:.0f}% of seats", delta_color="inverse")
+    c4.metric("Unclassified", nodata_n)
+
+    # ── Overview pie + district bar ────────────────────────────────────────────
+    classified = work[work["classification"] != "No Data"]
+    col_a, col_b = st.columns([1, 2])
+
+    with col_a:
+        pie_df = classified["classification"].value_counts().reset_index()
+        pie_df.columns = ["Outcome", "Seats"]
+        fig_pie = px.pie(
+            pie_df, names="Outcome", values="Seats",
+            color="Outcome",
+            color_discrete_map={"TMC": "#2CA02C", "BJP possible": "#FF7F0E"},
+            title="Overall Seat Outlook",
+            hole=0.45,
+        )
+        fig_pie.update_layout(height=300, margin=dict(t=40, b=10))
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    with col_b:
+        dist_df = (classified
+                   .groupby(["district", "classification"])
+                   .size().reset_index(name="Seats"))
+        fig_dist = px.bar(
+            dist_df, x="district", y="Seats", color="classification",
+            barmode="stack",
+            color_discrete_map={"TMC": "#2CA02C", "BJP possible": "#FF7F0E"},
+            title="Outlook by District",
+        )
+        fig_dist.update_layout(
+            height=300,
+            xaxis_tickangle=-45,
+            legend_title="",
+            margin=dict(t=40, b=80),
+        )
+        st.plotly_chart(fig_dist, use_container_width=True)
+
+    # ── Rule / reason breakdown ────────────────────────────────────────────────
+    st.markdown("**Seats by Classification Rule**")
+    reason_df = (classified
+                 .groupby(["reason", "classification"])
+                 .size().reset_index(name="Seats")
+                 .sort_values("Seats", ascending=True))
+    fig_reason = px.bar(
+        reason_df, x="Seats", y="reason", color="classification",
+        orientation="h",
+        color_discrete_map={"TMC": "#2CA02C", "BJP possible": "#FF7F0E"},
+        title="How many seats matched each rule",
+        text="Seats",
+    )
+    fig_reason.update_layout(
+        height=max(320, len(reason_df) * 28),
+        margin=dict(t=40, b=10, l=10, r=10),
+        legend_title="",
+        yaxis=dict(autorange="reversed"),
+    )
+    fig_reason.update_traces(textposition="outside")
+    st.plotly_chart(fig_reason, use_container_width=True)
+
+    st.divider()
+
+    # ── Seat-wise table ────────────────────────────────────────────────────────
+    filter_opt = st.radio(
+        "Filter seats:",
+        ["All", "TMC Likely", "BJP Possible", "No Data"],
+        horizontal=True, index=0,
+    )
+    fmap = {
+        "All":         None,
+        "TMC Likely":  "TMC",
+        "BJP Possible":"BJP possible",
+        "No Data":     "No Data",
+    }
+    view = work if fmap[filter_opt] is None else work[work["classification"] == fmap[filter_opt]]
+
+    rows = []
+    for _, r in view.sort_values("ac_no").iterrows():
+        def _n(v):
+            try: return float(v)
+            except: return 0.0
+        tmc24 = _n(r.get("tmc_24")); bjp24 = _n(r.get("bjp_24"))
+        el24  = _n(r.get("electors_24")); tv24 = _n(r.get("total_votes_24"))
+        el26  = _n(r.get("electors_26")); tv26 = _n(r.get("votes_26"))
+        tmc_won = tmc24 > 0 and tmc24 > bjp24
+        winner  = "TMC" if tmc_won else ("BJP" if bjp24 > tmc24 else "—")
+        margin  = abs(tmc24 - bjp24) if tmc24 > 0 and bjp24 > 0 else 0
+        sir_del = max(0.0, el24 - el26)
+        vote_chg = tv26 - tv24
+        rows.append({
+            "AC No":          int(r["ac_no"]),
+            "Constituency":   r["ac_name"],
+            "District":       r["district"],
+            "Muslim %":       r.get("muslim_pct", "—"),
+            "2024 Winner":    winner,
+            "TMC Votes 2024": fmt(tmc24) if tmc24 > 0 else "—",
+            "BJP Votes 2024": fmt(bjp24) if bjp24 > 0 else "—",
+            "Margin 2024":    fmt(margin) if margin > 0 else "—",
+            "Voters 2024":    fmt(el24) if el24 > 0 else "—",
+            "Voters 2026":    fmt(el26) if el26 > 0 else "—",
+            "SIR Deletion":   fmt(sir_del) if sir_del > 0 else "0",
+            "Vote Change":    fmt(vote_chg),
+            "Outlook":        r["classification"],
+            "Rule / Reason":  r["reason"],
+        })
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -636,7 +936,7 @@ def main():
 
     with st.sidebar:
         st.header("Select View")
-        view = st.radio("", ["State Summary", "SIR Impact 21→26", "SIR Impact 24→26", "By District", "By Constituency"],
+        view = st.radio("", ["State Summary", "Possibilities", "SIR Impact 21→26", "SIR Impact 24→26", "By District", "By Constituency"],
                         label_visibility="collapsed")
 
         sel_dist, sel_const = None, None
@@ -652,6 +952,8 @@ def main():
 
     if view == "State Summary":
         show_state(df)
+    elif view == "Possibilities":
+        show_possibilities(df)
     elif view == "SIR Impact 21→26":
         show_sir_impact(df)
     elif view == "SIR Impact 24→26":

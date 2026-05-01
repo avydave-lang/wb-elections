@@ -1,0 +1,295 @@
+Constituency No.,Constituency Name,District,Hindu %,Muslim %,Christian %,Buddhist / Other %,Majority Religion
+1,Mekhliganj,Cooch Behar,76.0%,22.0%,0.5%,1.5%,Hindu
+2,Mathabhanga,Cooch Behar,75.0%,23.0%,0.5%,1.5%,Hindu
+3,Cooch Behar North,Cooch Behar,74.0%,24.0%,0.5%,1.5%,Hindu
+4,Cooch Behar South,Cooch Behar,75.0%,23.0%,0.5%,1.5%,Hindu
+5,Sitai (SC),Cooch Behar,74.0%,24.0%,0.5%,1.5%,Hindu
+6,Sitalkuchi (SC),Cooch Behar,73.0%,25.0%,0.5%,1.5%,Hindu
+7,Tufanganj,Cooch Behar,76.0%,22.0%,0.5%,1.5%,Hindu
+8,Natabari (SC),Cooch Behar,75.0%,23.0%,0.5%,1.5%,Hindu
+9,Alipurduar,Alipurduar,79.0%,10.0%,6.0%,5.0%,Hindu
+10,Falakata (SC),Alipurduar,80.0%,9.0%,6.0%,5.0%,Hindu
+11,Kalchini (ST),Alipurduar,72.0%,8.0%,10.0%,10.0%,Hindu
+12,Kumargram (ST),Alipurduar,70.0%,8.0%,12.0%,10.0%,Hindu
+13,Madarihat (ST),Alipurduar,71.0%,7.0%,12.0%,10.0%,Hindu
+14,Dhupguri (SC),Jalpaiguri,78.0%,12.0%,5.0%,5.0%,Hindu
+15,Maynaguri (SC),Jalpaiguri,78.0%,12.0%,5.0%,5.0%,Hindu
+16,Jalpaiguri,Jalpaiguri,79.0%,11.0%,5.0%,5.0%,Hindu
+17,Rajganj (SC),Jalpaiguri,78.0%,12.0%,5.0%,5.0%,Hindu
+18,Dabgram-Fulbari,Jalpaiguri,77.0%,13.0%,5.0%,5.0%,Hindu
+19,Mal (ST),Jalpaiguri,70.0%,8.0%,12.0%,10.0%,Hindu
+20,Nagrakata (ST),Jalpaiguri,68.0%,7.0%,15.0%,10.0%,Hindu
+21,Darjeeling,Darjeeling,65.0%,5.0%,12.0%,18.0%,Hindu
+22,Kurseong,Darjeeling,67.0%,5.0%,12.0%,16.0%,Hindu
+23,Kalimpong,Darjeeling,60.0%,5.0%,15.0%,20.0%,Hindu
+24,Siliguri,Darjeeling,78.0%,12.0%,5.0%,5.0%,Hindu
+25,Phansidewa (SC),Darjeeling,75.0%,12.0%,8.0%,5.0%,Hindu
+26,Chopra,Uttar Dinajpur,35.0%,63.0%,1.0%,1.0%,Muslim
+27,Islampur,Uttar Dinajpur,42.0%,56.0%,1.0%,1.0%,Muslim
+28,Goalpokhar,Uttar Dinajpur,40.0%,58.0%,1.0%,1.0%,Muslim
+29,Chakulia (SC),Uttar Dinajpur,38.0%,60.0%,1.0%,1.0%,Muslim
+30,Karandighi,Uttar Dinajpur,52.0%,46.0%,1.0%,1.0%,Hindu
+31,Hemtabad (SC),Uttar Dinajpur,65.0%,33.0%,1.0%,1.0%,Hindu
+32,Kaliyaganj,Uttar Dinajpur,60.0%,38.0%,1.0%,1.0%,Hindu
+33,Raiganj,Uttar Dinajpur,62.0%,36.0%,1.0%,1.0%,Hindu
+34,Itahar (SC),Uttar Dinajpur,56.0%,42.0%,1.0%,1.0%,Hindu
+35,Kushmandi (SC),Dakshin Dinajpur,68.0%,30.0%,1.0%,1.0%,Hindu
+36,Kumarganj (SC),Dakshin Dinajpur,67.0%,31.0%,1.0%,1.0%,Hindu
+37,Balurghat,Dakshin Dinajpur,70.0%,28.0%,1.0%,1.0%,Hindu
+38,Tapan (SC),Dakshin Dinajpur,69.0%,29.0%,1.0%,1.0%,Hindu
+39,Gangarampur (SC),Dakshin Dinajpur,68.0%,30.0%,1.0%,1.0%,Hindu
+40,Harirampur (SC),Dakshin Dinajpur,69.0%,29.0%,1.0%,1.0%,Hindu
+41,Habibpur (ST),Malda,55.0%,43.0%,1.0%,1.0%,Hindu
+42,Gazole (SC),Malda,53.0%,45.0%,1.0%,1.0%,Hindu
+43,Chanchal,Malda,35.0%,63.0%,1.0%,1.0%,Muslim
+44,Harishchandrapur,Malda,38.0%,60.0%,1.0%,1.0%,Muslim
+45,Malatipur (SC),Malda,40.0%,58.0%,1.0%,1.0%,Muslim
+46,Ratua,Malda,37.0%,61.0%,1.0%,1.0%,Muslim
+47,Manikchak,Malda,45.0%,53.0%,1.0%,1.0%,Muslim
+48,Malda,Malda,52.0%,46.0%,1.0%,1.0%,Hindu
+49,Mothabari,Malda,35.6%,62.4%,1.0%,1.0%,Muslim
+50,Sujapur,Malda,38.0%,60.0%,1.0%,1.0%,Muslim
+51,Baisnabnagar,Malda,42.0%,56.0%,1.0%,1.0%,Muslim
+52,English Bazar,Malda,54.0%,44.0%,1.0%,1.0%,Hindu
+53,Farakka,Murshidabad,31.0%,67.0%,1.0%,1.0%,Muslim
+54,Samserganj,Murshidabad,28.0%,70.0%,1.0%,1.0%,Muslim
+55,Suti,Murshidabad,30.0%,68.0%,1.0%,1.0%,Muslim
+56,Jangipur,Murshidabad,32.0%,66.0%,1.0%,1.0%,Muslim
+57,Raghunathganj,Murshidabad,30.0%,68.0%,1.0%,1.0%,Muslim
+58,Sagardighi,Murshidabad,33.0%,65.0%,1.0%,1.0%,Muslim
+59,Lalgola (SC),Murshidabad,25.0%,73.0%,1.0%,1.0%,Muslim
+60,Bhagawangola,Murshidabad,28.0%,70.0%,1.0%,1.0%,Muslim
+61,Raninagar,Murshidabad,30.0%,68.0%,1.0%,1.0%,Muslim
+62,Murshidabad,Murshidabad,35.0%,63.0%,1.0%,1.0%,Muslim
+63,Nabagram (SC),Murshidabad,35.0%,63.0%,1.0%,1.0%,Muslim
+64,Khargram (SC),Murshidabad,38.0%,60.0%,1.0%,1.0%,Muslim
+65,Burwan,Murshidabad,36.0%,62.0%,1.0%,1.0%,Muslim
+66,Kandi,Murshidabad,40.0%,58.0%,1.0%,1.0%,Muslim
+67,Bharatpur,Murshidabad,38.0%,60.0%,1.0%,1.0%,Muslim
+68,Rejinagar (SC),Murshidabad,36.0%,62.0%,1.0%,1.0%,Muslim
+69,Beldanga,Murshidabad,32.0%,66.0%,1.0%,1.0%,Muslim
+70,Bahrampur,Murshidabad,45.0%,53.0%,1.0%,1.0%,Muslim
+71,Hariharpara (SC),Murshidabad,33.0%,65.0%,1.0%,1.0%,Muslim
+72,Nowda,Murshidabad,35.0%,63.0%,1.0%,1.0%,Muslim
+73,Domkal,Murshidabad,28.0%,70.0%,1.0%,1.0%,Muslim
+74,Jalangi (SC),Murshidabad,27.0%,71.0%,1.0%,1.0%,Muslim
+75,Nalhati,Birbhum,55.0%,43.0%,1.0%,1.0%,Hindu
+76,Murarai,Birbhum,50.0%,48.0%,1.0%,1.0%,Hindu
+77,Mayureswar (SC),Birbhum,58.0%,40.0%,1.0%,1.0%,Hindu
+78,Rampurhat,Birbhum,57.0%,41.0%,1.0%,1.0%,Hindu
+79,Hansan (SC),Birbhum,62.0%,36.0%,1.0%,1.0%,Hindu
+81,Sainthia,Birbhum,62.0%,36.0%,1.0%,1.0%,Hindu
+81,Dubrajpur (SC),Birbhum,63.0%,35.0%,1.0%,1.0%,Hindu
+82,Suri,Birbhum,65.0%,33.0%,1.0%,1.0%,Hindu
+83,Sainthia,Birbhum,62.0%,36.0%,1.0%,1.0%,Hindu
+84,Bolpur (SC),Birbhum,64.0%,34.0%,1.0%,1.0%,Hindu
+85,Ilambazar,Birbhum,60.0%,38.0%,1.0%,1.0%,Hindu
+86,Katwa,Purba Bardhaman,76.0%,22.0%,1.0%,1.0%,Hindu
+87,Ausgram (SC),Purba Bardhaman,75.0%,23.0%,1.0%,1.0%,Hindu
+88,Monteswar,Purba Bardhaman,75.0%,23.0%,1.0%,1.0%,Hindu
+89,Kalna,Purba Bardhaman,76.0%,22.0%,1.0%,1.0%,Hindu
+90,Memari,Purba Bardhaman,77.0%,21.0%,1.0%,1.0%,Hindu
+91,Barddhaman Uttar (SC),Purba Bardhaman,76.0%,22.0%,1.0%,1.0%,Hindu
+92,Barddhaman Dakshin,Purba Bardhaman,77.0%,21.0%,1.0%,1.0%,Hindu
+93,Raina,Purba Bardhaman,78.0%,20.0%,1.0%,1.0%,Hindu
+94,Jamalpur (SC),Purba Bardhaman,76.0%,22.0%,1.0%,1.0%,Hindu
+95,Purbasthali Dakshin,Purba Bardhaman,75.0%,23.0%,1.0%,1.0%,Hindu
+96,Purbasthali Uttar,Purba Bardhaman,76.0%,22.0%,1.0%,1.0%,Hindu
+97,Ketugram,Purba Bardhaman,74.0%,24.0%,1.0%,1.0%,Hindu
+98,Mangalkote,Purba Bardhaman,73.0%,25.0%,1.0%,1.0%,Hindu
+99,Galsi (SC),Paschim Bardhaman,78.0%,20.0%,1.0%,1.0%,Hindu
+100,Budbud (SC),Paschim Bardhaman,77.0%,21.0%,1.0%,1.0%,Hindu
+101,Kanksa,Paschim Bardhaman,79.0%,19.0%,1.0%,1.0%,Hindu
+102,Ondal,Paschim Bardhaman,78.0%,20.0%,1.0%,1.0%,Hindu
+103,Pandabeswar,Paschim Bardhaman,80.0%,18.0%,1.0%,1.0%,Hindu
+104,Durgapur Purba,Paschim Bardhaman,80.0%,18.0%,1.0%,1.0%,Hindu
+105,Durgapur Paschim,Paschim Bardhaman,81.0%,17.0%,1.0%,1.0%,Hindu
+106,Raniganj,Paschim Bardhaman,79.0%,19.0%,1.0%,1.0%,Hindu
+107,Jamuria (SC),Paschim Bardhaman,80.0%,18.0%,1.0%,1.0%,Hindu
+108,Asansol Uttar,Paschim Bardhaman,75.0%,22.0%,2.0%,1.0%,Hindu
+109,Asansol Dakshin,Paschim Bardhaman,74.0%,23.0%,2.0%,1.0%,Hindu
+110,Kulti,Paschim Bardhaman,78.0%,20.0%,1.0%,1.0%,Hindu
+111,Barabani (SC),Paschim Bardhaman,79.0%,19.0%,1.0%,1.0%,Hindu
+112,Karimpur,Nadia,65.0%,33.0%,1.0%,1.0%,Hindu
+113,Tehatta (SC),Nadia,68.0%,30.0%,1.0%,1.0%,Hindu
+114,Palashipara (SC),Nadia,64.0%,34.0%,1.0%,1.0%,Hindu
+115,Chapra,Nadia,66.0%,32.0%,1.0%,1.0%,Hindu
+116,Nakashipara,Nadia,65.0%,33.0%,1.0%,1.0%,Hindu
+117,Krishnanagar Uttar (SC),Nadia,73.0%,25.0%,1.0%,1.0%,Hindu
+118,Nabadwip,Nadia,78.0%,20.0%,1.0%,1.0%,Hindu
+119,Krishnanagar Dakshin,Nadia,75.0%,23.0%,1.0%,1.0%,Hindu
+120,Santipur,Nadia,77.0%,21.0%,1.0%,1.0%,Hindu
+121,Ranaghat Uttar Paschim (SC),Nadia,78.0%,20.0%,1.0%,1.0%,Hindu
+122,Ranaghat Uttar Purba,Nadia,78.0%,20.0%,1.0%,1.0%,Hindu
+123,Ranaghat Dakshin,Nadia,79.0%,19.0%,1.0%,1.0%,Hindu
+124,Chakdaha,Nadia,76.0%,22.0%,1.0%,1.0%,Hindu
+125,Kalyani (SC),Nadia,77.0%,21.0%,1.0%,1.0%,Hindu
+126,Haringhata (SC),Nadia,76.0%,22.0%,1.0%,1.0%,Hindu
+127,Bagda (SC),Nadia,74.0%,24.0%,1.0%,1.0%,Hindu
+128,Hanskhali (SC),Nadia,75.0%,23.0%,1.0%,1.0%,Hindu
+129,Gaighata (SC),North 24 Parganas,76.0%,22.0%,1.0%,1.0%,Hindu
+130,Swarupnagar (SC),North 24 Parganas,60.0%,38.0%,1.0%,1.0%,Hindu
+131,Baduria,North 24 Parganas,55.0%,43.0%,1.0%,1.0%,Hindu
+132,Basirhat Dakshin,North 24 Parganas,58.0%,40.0%,1.0%,1.0%,Hindu
+133,Basirhat Uttar,North 24 Parganas,52.0%,46.0%,1.0%,1.0%,Hindu
+134,Haroa (SC),North 24 Parganas,53.0%,45.0%,1.0%,1.0%,Hindu
+135,Minakhan (SC),North 24 Parganas,54.0%,44.0%,1.0%,1.0%,Hindu
+136,Sandeshkhali (ST),North 24 Parganas,60.0%,38.0%,1.0%,1.0%,Hindu
+137,Hasnabad (SC),North 24 Parganas,56.0%,42.0%,1.0%,1.0%,Hindu
+138,Hingalganj (SC),North 24 Parganas,62.0%,36.0%,1.0%,1.0%,Hindu
+139,Bongaon Uttar (SC),North 24 Parganas,79.0%,19.0%,1.0%,1.0%,Hindu
+140,Bongaon Dakshin (SC),North 24 Parganas,80.0%,18.0%,1.0%,1.0%,Hindu
+141,Gaighata,North 24 Parganas,78.0%,20.0%,1.0%,1.0%,Hindu
+142,Habra,North 24 Parganas,76.0%,22.0%,1.0%,1.0%,Hindu
+143,Ashoknagar (SC),North 24 Parganas,77.0%,21.0%,1.0%,1.0%,Hindu
+144,Amdanga,North 24 Parganas,58.0%,40.0%,1.0%,1.0%,Hindu
+145,Deganga,North 24 Parganas,50.0%,48.0%,1.0%,1.0%,Hindu
+146,Rajarhat Gopalpur,North 24 Parganas,73.0%,25.0%,1.0%,1.0%,Hindu
+147,Barasat,North 24 Parganas,72.0%,26.0%,1.0%,1.0%,Hindu
+148,Madhyamgram,North 24 Parganas,73.0%,25.0%,1.0%,1.0%,Hindu
+149,Rajarhat New Town,North 24 Parganas,74.0%,24.0%,1.0%,1.0%,Hindu
+150,Bidhannagar,North 24 Parganas,76.0%,22.0%,1.0%,1.0%,Hindu
+151,Raiganj,North 24 Parganas,77.0%,21.0%,1.0%,1.0%,Hindu
+152,Khardaha (SC),North 24 Parganas,75.0%,23.0%,1.0%,1.0%,Hindu
+153,Dum Dum Uttar,North 24 Parganas,76.0%,22.0%,1.0%,1.0%,Hindu
+154,Panihati,North 24 Parganas,74.0%,24.0%,1.0%,1.0%,Hindu
+155,Kamarhati (SC),North 24 Parganas,75.0%,23.0%,1.0%,1.0%,Hindu
+156,Baranagar,North 24 Parganas,74.0%,24.0%,1.0%,1.0%,Hindu
+157,Dum Dum,North 24 Parganas,75.0%,23.0%,1.0%,1.0%,Hindu
+158,Belgharia,North 24 Parganas,74.0%,24.0%,1.0%,1.0%,Hindu
+159,Jagatdal (SC),North 24 Parganas,72.0%,26.0%,1.0%,1.0%,Hindu
+160,Noapara,North 24 Parganas,72.0%,26.0%,1.0%,1.0%,Hindu
+161,Bhatpara,North 24 Parganas,65.0%,33.0%,1.0%,1.0%,Hindu
+162,Chitpur,Kolkata,55.0%,43.0%,1.0%,1.0%,Hindu
+163,Entally,Kolkata,48.0%,50.0%,1.0%,1.0%,Muslim
+164,Beleghata,Kolkata,62.0%,36.0%,1.0%,1.0%,Hindu
+165,Jorasanko (SC),Kolkata,55.0%,43.0%,1.0%,1.0%,Hindu
+166,Shyampukur (SC),Kolkata,57.0%,41.0%,1.0%,1.0%,Hindu
+167,Maniktala,Kolkata,62.0%,36.0%,1.0%,1.0%,Hindu
+168,Kasba,Kolkata,75.0%,23.0%,1.0%,1.0%,Hindu
+169,Jadavpur,Kolkata,80.0%,18.0%,1.0%,1.0%,Hindu
+170,Kolkata Port (SC),Kolkata,60.0%,38.0%,1.0%,1.0%,Hindu
+171,Bhabanipur,Kolkata,72.0%,26.0%,1.0%,1.0%,Hindu
+172,Rashbehari,Kolkata,78.0%,20.0%,1.0%,1.0%,Hindu
+173,Shibpur,Howrah,68.0%,30.0%,1.0%,1.0%,Hindu
+174,Howrah Madhya,Howrah,65.0%,33.0%,1.0%,1.0%,Hindu
+175,Howrah Uttar,Howrah,67.0%,31.0%,1.0%,1.0%,Hindu
+176,Howrah Dakshin (SC),Howrah,70.0%,28.0%,1.0%,1.0%,Hindu
+177,Sankrail,Howrah,72.0%,26.0%,1.0%,1.0%,Hindu
+178,Panchla (SC),Howrah,74.0%,24.0%,1.0%,1.0%,Hindu
+179,Uluberia Purba,Howrah,70.0%,28.0%,1.0%,1.0%,Hindu
+180,Uluberia Uttar,Howrah,65.0%,33.0%,1.0%,1.0%,Hindu
+181,Uluberia Dakshin,Howrah,68.0%,30.0%,1.0%,1.0%,Hindu
+182,Shyampur (SC),Howrah,76.0%,22.0%,1.0%,1.0%,Hindu
+183,Bagnan,Howrah,77.0%,21.0%,1.0%,1.0%,Hindu
+184,Amta (SC),Howrah,77.0%,21.0%,1.0%,1.0%,Hindu
+185,Udaynarayanpur,Howrah,78.0%,20.0%,1.0%,1.0%,Hindu
+186,Jagatballavpur (SC),Howrah,79.0%,19.0%,1.0%,1.0%,Hindu
+187,Domjur (SC),Howrah,77.0%,21.0%,1.0%,1.0%,Hindu
+188,Bally,Howrah,70.0%,28.0%,1.0%,1.0%,Hindu
+189,Chanditala,Hooghly,83.0%,15.0%,1.0%,1.0%,Hindu
+190,Jangipara (SC),Hooghly,78.0%,20.0%,1.0%,1.0%,Hindu
+191,Haripal (SC),Hooghly,82.0%,16.0%,1.0%,1.0%,Hindu
+192,Dhaniakhali (SC),Hooghly,80.0%,18.0%,1.0%,1.0%,Hindu
+193,Pursurah,Hooghly,82.0%,16.0%,1.0%,1.0%,Hindu
+194,Goghat,Hooghly,84.0%,14.0%,1.0%,1.0%,Hindu
+195,Arambag (SC),Hooghly,83.0%,15.0%,1.0%,1.0%,Hindu
+196,Khanakul,Hooghly,82.0%,16.0%,1.0%,1.0%,Hindu
+197,Tarakeswar,Hooghly,85.0%,13.0%,1.0%,1.0%,Hindu
+198,Pandua,Hooghly,80.0%,18.0%,1.0%,1.0%,Hindu
+199,Singur,Hooghly,84.0%,14.0%,1.0%,1.0%,Hindu
+200,Chandernagor (SC),Hooghly,83.0%,15.0%,1.0%,1.0%,Hindu
+201,Srirampur,Hooghly,83.0%,15.0%,1.0%,1.0%,Hindu
+202,Champdany (SC),Hooghly,82.0%,16.0%,1.0%,1.0%,Hindu
+203,Uttarpara (SC),Hooghly,83.0%,15.0%,1.0%,1.0%,Hindu
+204,Serampore,Hooghly,82.0%,16.0%,1.0%,1.0%,Hindu
+205,Bhadreswar,Hooghly,80.0%,18.0%,1.0%,1.0%,Hindu
+206,Chinsurah,Hooghly,81.0%,17.0%,1.0%,1.0%,Hindu
+207,Diamond Harbour,South 24 Parganas,73.0%,25.0%,1.0%,1.0%,Hindu
+208,Falta (SC),South 24 Parganas,74.0%,24.0%,1.0%,1.0%,Hindu
+209,Satgachia (SC),South 24 Parganas,72.0%,26.0%,1.0%,1.0%,Hindu
+210,Bishnupur (SC),South 24 Parganas,73.0%,25.0%,1.0%,1.0%,Hindu
+211,Magrahat Purba (SC),South 24 Parganas,72.0%,26.0%,1.0%,1.0%,Hindu
+212,Magrahat Paschim,South 24 Parganas,70.0%,28.0%,1.0%,1.0%,Hindu
+213,Mandirbazar (SC),South 24 Parganas,68.0%,30.0%,1.0%,1.0%,Hindu
+214,Jaynagar (SC),South 24 Parganas,68.0%,30.0%,1.0%,1.0%,Hindu
+215,Kultali (SC),South 24 Parganas,65.0%,33.0%,1.0%,1.0%,Hindu
+216,Patharpratima,South 24 Parganas,58.0%,40.0%,1.0%,1.0%,Hindu
+217,Kakdwip,South 24 Parganas,62.0%,36.0%,1.0%,1.0%,Hindu
+218,Sagar (SC),South 24 Parganas,70.0%,28.0%,1.0%,1.0%,Hindu
+219,Canning Purba,South 24 Parganas,62.0%,36.0%,1.0%,1.0%,Hindu
+220,Canning Paschim (SC),South 24 Parganas,64.0%,34.0%,1.0%,1.0%,Hindu
+221,Basirhat Dakshin,South 24 Parganas,68.0%,30.0%,1.0%,1.0%,Hindu
+222,Joynagar,South 24 Parganas,68.0%,30.0%,1.0%,1.0%,Hindu
+223,Baruipur Purba,South 24 Parganas,73.0%,25.0%,1.0%,1.0%,Hindu
+224,Baruipur Paschim,South 24 Parganas,74.0%,24.0%,1.0%,1.0%,Hindu
+225,Sonarpur Dakshin (SC),South 24 Parganas,76.0%,22.0%,1.0%,1.0%,Hindu
+226,Sonarpur Uttar,South 24 Parganas,77.0%,21.0%,1.0%,1.0%,Hindu
+227,Tollygunge (SC),South 24 Parganas,75.0%,23.0%,1.0%,1.0%,Hindu
+228,Behala Purba,South 24 Parganas,80.0%,18.0%,1.0%,1.0%,Hindu
+229,Behala Paschim,South 24 Parganas,81.0%,17.0%,1.0%,1.0%,Hindu
+230,Maheshtala (SC),South 24 Parganas,73.0%,25.0%,1.0%,1.0%,Hindu
+231,Budge Budge (SC),South 24 Parganas,72.0%,26.0%,1.0%,1.0%,Hindu
+232,Metiaburuz,South 24 Parganas,25.0%,73.0%,1.0%,1.0%,Muslim
+233,Garden Reach (SC),South 24 Parganas,50.0%,48.0%,1.0%,1.0%,Hindu
+234,Kolkata Port,South 24 Parganas,55.0%,43.0%,1.0%,1.0%,Hindu
+235,Thakurpukur (SC),South 24 Parganas,77.0%,21.0%,1.0%,1.0%,Hindu
+236,Regent Park,South 24 Parganas,72.0%,26.0%,1.0%,1.0%,Hindu
+237,Ballygunge,South 24 Parganas,73.0%,25.0%,1.0%,1.0%,Hindu
+238,Nandigram,Purba Medinipur,74.0%,25.0%,0.5%,0.5%,Hindu
+239,Haldia (SC),Purba Medinipur,85.0%,13.0%,1.0%,1.0%,Hindu
+240,Mahishadal,Purba Medinipur,86.0%,12.0%,1.0%,1.0%,Hindu
+241,Nandakumar (SC),Purba Medinipur,86.0%,12.0%,1.0%,1.0%,Hindu
+242,Tamluk,Purba Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+243,Moyna,Purba Medinipur,85.0%,13.0%,1.0%,1.0%,Hindu
+244,Panskura Purba (SC),Purba Medinipur,86.0%,12.0%,1.0%,1.0%,Hindu
+245,Panskura Paschim,Purba Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+246,Contai Uttar,Purba Medinipur,88.0%,10.0%,1.0%,1.0%,Hindu
+247,Contai Dakshin,Purba Medinipur,88.0%,10.0%,1.0%,1.0%,Hindu
+248,Deshopriyo,Purba Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+249,Ramnagar,Purba Medinipur,88.0%,10.0%,1.0%,1.0%,Hindu
+250,Potashpur,Purba Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+251,Egra,Purba Medinipur,86.0%,12.0%,1.0%,1.0%,Hindu
+252,Bhagabanpur,Purba Medinipur,86.0%,12.0%,1.0%,1.0%,Hindu
+253,Khejuri (SC),Purba Medinipur,85.0%,13.0%,1.0%,1.0%,Hindu
+254,Chandrakona,Paschim Medinipur,86.0%,12.0%,1.0%,1.0%,Hindu
+255,Ghatal,Paschim Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+256,Daspur,Paschim Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+257,Keshpur,Paschim Medinipur,86.0%,12.0%,1.0%,1.0%,Hindu
+258,Kharagpur Sadar (SC),Paschim Medinipur,85.0%,10.0%,3.0%,2.0%,Hindu
+259,Nayagram (ST),Paschim Medinipur,75.0%,8.0%,7.0%,10.0%,Hindu
+260,Garbeta (ST),Paschim Medinipur,76.0%,8.0%,6.0%,10.0%,Hindu
+261,Salboni (SC),Paschim Medinipur,80.0%,12.0%,4.0%,4.0%,Hindu
+262,Kharagpur,Paschim Medinipur,83.0%,12.0%,3.0%,2.0%,Hindu
+263,Debra (SC),Paschim Medinipur,88.0%,10.0%,1.0%,1.0%,Hindu
+264,Pingla (SC),Paschim Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+265,Sabang,Paschim Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+266,Narayangarh,Paschim Medinipur,86.0%,12.0%,1.0%,1.0%,Hindu
+267,Dantan (SC),Paschim Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+268,Medinipur,Paschim Medinipur,87.0%,11.0%,1.0%,1.0%,Hindu
+269,Binpur (ST),Paschim Medinipur,72.0%,8.0%,8.0%,12.0%,Hindu
+270,Bandwan (ST),Paschim Medinipur,72.0%,8.0%,8.0%,12.0%,Hindu
+271,Joypur,Paschim Medinipur,86.0%,12.0%,1.0%,1.0%,Hindu
+272,Ranibandh (ST),Bankura,72.0%,8.0%,8.0%,12.0%,Hindu
+273,Raipur (ST),Bankura,73.0%,8.0%,7.0%,12.0%,Hindu
+274,Taldangra,Bankura,87.0%,11.0%,1.0%,1.0%,Hindu
+275,Bankura,Bankura,88.0%,10.0%,1.0%,1.0%,Hindu
+276,Barjora,Bankura,88.0%,10.0%,1.0%,1.0%,Hindu
+277,Onda (SC),Bankura,87.0%,11.0%,1.0%,1.0%,Hindu
+278,Bishnupur (SC),Bankura,88.0%,10.0%,1.0%,1.0%,Hindu
+279,Sonamukhi,Bankura,89.0%,9.0%,1.0%,1.0%,Hindu
+280,Patrasayer,Bankura,88.0%,10.0%,1.0%,1.0%,Hindu
+281,Kotulpur (SC),Bankura,87.0%,11.0%,1.0%,1.0%,Hindu
+282,Indas (SC),Bankura,88.0%,10.0%,1.0%,1.0%,Hindu
+283,Saltora (SC),Bankura,87.0%,11.0%,1.0%,1.0%,Hindu
+284,Bagmundi (ST),Purulia,72.0%,8.0%,8.0%,12.0%,Hindu
+285,Balarampur (ST),Purulia,73.0%,8.0%,7.0%,12.0%,Hindu
+286,Joypur,Purulia,88.0%,10.0%,1.0%,1.0%,Hindu
+287,Purulia,Purulia,89.0%,9.0%,1.0%,1.0%,Hindu
+288,Para,Purulia,88.0%,10.0%,1.0%,1.0%,Hindu
+289,Manbazar (ST),Purulia,74.0%,8.0%,7.0%,11.0%,Hindu
+290,Kashipur (SC),Purulia,87.0%,11.0%,1.0%,1.0%,Hindu
+291,Raghunathpur,Purulia,89.0%,9.0%,1.0%,1.0%,Hindu
+292,Santaldih,Purulia,87.0%,11.0%,1.0%,1.0%,Hindu
+293,Jhargram,Jhargram,80.0%,8.0%,5.0%,7.0%,Hindu
+294,Nayagram,Jhargram,70.0%,7.0%,10.0%,13.0%,Hindu
