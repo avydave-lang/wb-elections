@@ -152,6 +152,26 @@ def agg_year(df, has_nota):
     return pd.DataFrame(rows)
 
 
+@st.cache_data(show_spinner="Reading prediction data …")
+def load_prediction():
+    df = pd.read_csv("Prediction.csv")
+    df.columns = df.columns.str.strip()
+    comma_cols = [
+        "TMC_margin_2024", "TMC_margin_2021",
+        "BJP_trend_2021_2024", "TMC_trend_2021_2024", "BJP_vs_TMC_trend",
+    ]
+    for c in comma_cols:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c].astype(str).str.replace(",", "", regex=False), errors="coerce")
+    vote_cols = [c for c in df.columns if any(y in c for y in ["2019", "2021", "2024", "2026"])]
+    for c in vote_cols:
+        df[c] = pd.to_numeric(df[c].astype(str).str.replace(",", "", regex=False), errors="coerce")
+    for col in ["Muslim %", "Hindu %", "Christian %", "Buddhist/Other %"]:
+        if col in df.columns:
+            df[col + "_n"] = pd.to_numeric(df[col].astype(str).str.replace("%", "", regex=False), errors="coerce")
+    return df
+
+
 @st.cache_data(show_spinner="Building master dataset …")
 def load_master():
     a19 = agg_year(raw_2019(), True)
@@ -679,6 +699,223 @@ def show_sir_impact_2024(df):
               election_label="TMC-leading 2024 Lok Sabha assembly segment")
 
 
+# ── Prediction view ───────────────────────────────────────────────────────────
+
+_PRED_ORDER = ["TMC Win", "TMC Contested", "BJP Possible", "BJP Contested", "BJP Win"]
+_PRED_COLORS = {
+    "TMC Win":       "#1a7a1a",
+    "TMC Contested": "#5cb85c",
+    "BJP Possible":  "#ffbb78",
+    "BJP Contested": "#ff7f0e",
+    "BJP Win":       "#d62728",
+}
+
+
+def show_prediction():
+    st.subheader("2026 Seat Predictions")
+
+    try:
+        pred = load_prediction()
+    except Exception as e:
+        st.error(f"Could not load Prediction.csv: {e}")
+        return
+
+    total  = len(pred)
+    counts = pred["Prediction"].value_counts()
+
+    tmc_total = counts.get("TMC Win", 0) + counts.get("TMC Contested", 0)
+    bjp_total = counts.get("BJP Win", 0) + counts.get("BJP Contested", 0) + counts.get("BJP Possible", 0)
+
+    # ── Summary metrics ────────────────────────────────────────────────────────
+    st.markdown(
+        f"**TMC leaning: {tmc_total} seats &nbsp;|&nbsp; "
+        f"BJP leaning / possible: {bjp_total} seats &nbsp;|&nbsp; Total: {total}**",
+        unsafe_allow_html=True,
+    )
+    cols = st.columns(5)
+    for i, label in enumerate(_PRED_ORDER):
+        n = counts.get(label, 0)
+        cols[i].metric(label, f"{n}  ({n/total*100:.0f}%)")
+
+    st.divider()
+
+    # ── Tabs ──────────────────────────────────────────────────────────────────
+    tab_ov, tab_an, tab_seats = st.tabs(["Overview", "Analysis", "Seat List"])
+
+    # ── Tab 1: Overview ───────────────────────────────────────────────────────
+    with tab_ov:
+        col_a, col_b = st.columns([1, 2])
+
+        with col_a:
+            pie_df = (pred["Prediction"].value_counts()
+                      .reindex(_PRED_ORDER).dropna().reset_index())
+            pie_df.columns = ["Prediction", "Seats"]
+            fig_pie = px.pie(
+                pie_df, names="Prediction", values="Seats",
+                color="Prediction", color_discrete_map=_PRED_COLORS,
+                title="Overall Seat Outlook", hole=0.45,
+                category_orders={"Prediction": _PRED_ORDER},
+            )
+            fig_pie.update_layout(height=340, margin=dict(t=40, b=10))
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        with col_b:
+            dist_df = (pred.groupby(["District", "Prediction"])
+                       .size().reset_index(name="Seats"))
+            fig_dist = px.bar(
+                dist_df, x="District", y="Seats", color="Prediction",
+                barmode="stack",
+                color_discrete_map=_PRED_COLORS,
+                category_orders={"Prediction": _PRED_ORDER},
+                title="Prediction by District",
+            )
+            fig_dist.update_layout(
+                height=340, xaxis_tickangle=-45,
+                legend_title="", margin=dict(t=40, b=100),
+            )
+            st.plotly_chart(fig_dist, use_container_width=True)
+
+        # Rule breakdown
+        rule_order = (pred.groupby("Rule Used").size()
+                      .sort_values(ascending=True).index.tolist())
+        rule_df = (pred.groupby(["Rule Used", "Prediction"])
+                   .size().reset_index(name="Seats"))
+        fig_rule = px.bar(
+            rule_df, x="Seats", y="Rule Used", color="Prediction",
+            orientation="h",
+            color_discrete_map=_PRED_COLORS,
+            category_orders={"Prediction": _PRED_ORDER, "Rule Used": rule_order},
+            title="Seats per Classification Rule",
+            text="Seats",
+        )
+        fig_rule.update_layout(
+            height=max(360, len(rule_order) * 30),
+            margin=dict(t=40, b=10, l=10, r=30),
+            legend_title="",
+        )
+        fig_rule.update_traces(textposition="outside")
+        st.plotly_chart(fig_rule, use_container_width=True)
+
+    # ── Tab 2: Analysis ───────────────────────────────────────────────────────
+    with tab_an:
+        sc1, sc2 = st.columns(2)
+
+        with sc1:
+            sc_df = pred.dropna(subset=["Muslim %_n", "voter_drop_pct"])
+            fig_sc1 = px.scatter(
+                sc_df,
+                x="Muslim %_n", y="voter_drop_pct",
+                color="Prediction",
+                color_discrete_map=_PRED_COLORS,
+                category_orders={"Prediction": _PRED_ORDER},
+                hover_name="Constituency",
+                hover_data={"District": True, "Rule Used": True,
+                            "Muslim %_n": False, "voter_drop_pct": ":.1f"},
+                labels={"Muslim %_n": "Muslim %", "voter_drop_pct": "Voter Roll Drop %"},
+                title="Muslim % vs Voter Roll Drop",
+            )
+            fig_sc1.update_layout(height=400, legend_title="", margin=dict(t=40, b=10))
+            st.plotly_chart(fig_sc1, use_container_width=True)
+
+        with sc2:
+            sc_df2 = pred.dropna(subset=["TMC_trend_2021_2024", "BJP_trend_2021_2024"])
+            fig_sc2 = px.scatter(
+                sc_df2,
+                x="BJP_trend_2021_2024", y="TMC_trend_2021_2024",
+                color="Prediction",
+                color_discrete_map=_PRED_COLORS,
+                category_orders={"Prediction": _PRED_ORDER},
+                hover_name="Constituency",
+                hover_data={"District": True, "Muslim %": True,
+                            "BJP_trend_2021_2024": ":,", "TMC_trend_2021_2024": ":,"},
+                labels={
+                    "BJP_trend_2021_2024": "BJP Vote Change 2021→2024",
+                    "TMC_trend_2021_2024": "TMC Vote Change 2021→2024",
+                },
+                title="Vote Swing 2021→2024  (BJP vs TMC)",
+            )
+            fig_sc2.add_hline(y=0, line_dash="dot", line_color="grey", opacity=0.4)
+            fig_sc2.add_vline(x=0, line_dash="dot", line_color="grey", opacity=0.4)
+            fig_sc2.update_layout(height=400, legend_title="", margin=dict(t=40, b=10))
+            st.plotly_chart(fig_sc2, use_container_width=True)
+
+        # Voter drop histogram by prediction
+        hist_df = pred.dropna(subset=["voter_drop_pct"])
+        fig_hist = px.histogram(
+            hist_df, x="voter_drop_pct", color="Prediction",
+            color_discrete_map=_PRED_COLORS,
+            category_orders={"Prediction": _PRED_ORDER},
+            barmode="overlay", opacity=0.7,
+            nbins=30,
+            labels={"voter_drop_pct": "Voter Roll Drop %"},
+            title="Distribution of Voter Roll Drop % by Prediction",
+        )
+        fig_hist.update_layout(height=320, legend_title="", margin=dict(t=40, b=10))
+        st.plotly_chart(fig_hist, use_container_width=True)
+
+        # Key contests callout
+        contested = pred[pred["Prediction"].isin(["TMC Contested", "BJP Contested"])]
+        if not contested.empty:
+            st.markdown(f"**Closely Contested Seats — {len(contested)} constituencies**")
+            st.caption("These seats are within striking distance for either party.")
+            con_rows = []
+            for _, r in contested.sort_values("District").iterrows():
+                con_rows.append({
+                    "AC No":         int(r["AC No"]),
+                    "Constituency":  r["Constituency"],
+                    "District":      r["District"],
+                    "Prediction":    r["Prediction"],
+                    "Muslim %":      r.get("Muslim %", "—"),
+                    "TMC Margin 24": r.get("TMC_margin_2024"),
+                    "Voter Drop 24→26": r.get("voter_drop_24_26"),
+                    "Voter Drop %":  f"{r.get('voter_drop_pct', 0):.1f}%",
+                    "Rule":          r.get("Rule Used", "—"),
+                })
+            st.dataframe(pd.DataFrame(con_rows), use_container_width=True, hide_index=True)
+
+    # ── Tab 3: Seat List ──────────────────────────────────────────────────────
+    with tab_seats:
+        f1, f2, f3 = st.columns(3)
+        with f1:
+            pred_filter = st.multiselect("Prediction", options=_PRED_ORDER, default=[])
+        with f2:
+            rule_opts = sorted(pred["Rule Used"].unique().tolist())
+            rule_filter = st.multiselect("Rule", options=rule_opts, default=[])
+        with f3:
+            dist_opts = sorted(pred["District"].unique().tolist())
+            dist_filter = st.multiselect("District", options=dist_opts, default=[])
+
+        view = pred.copy()
+        if pred_filter:  view = view[view["Prediction"].isin(pred_filter)]
+        if rule_filter:  view = view[view["Rule Used"].isin(rule_filter)]
+        if dist_filter:  view = view[view["District"].isin(dist_filter)]
+
+        st.caption(f"Showing {len(view)} of {total} constituencies")
+
+        disp_cols = [
+            "AC No", "Constituency", "District", "Prediction", "Rule Used",
+            "Muslim %", "Hindu %",
+            "TMC_margin_2024", "TMC_margin_2021",
+            "voter_drop_24_26", "voter_drop_pct",
+            "voter_increase_votes_cast",
+            "BJP_trend_2021_2024", "TMC_trend_2021_2024",
+        ]
+        disp_cols = [c for c in disp_cols if c in view.columns]
+        disp = (view[disp_cols]
+                .sort_values("AC No")
+                .rename(columns={
+                    "Rule Used":                  "Rule",
+                    "TMC_margin_2024":             "TMC Margin 2024",
+                    "TMC_margin_2021":             "TMC Margin 2021",
+                    "voter_drop_24_26":            "Voter Drop (24→26)",
+                    "voter_drop_pct":              "Voter Drop %",
+                    "voter_increase_votes_cast":   "Vote Increase",
+                    "BJP_trend_2021_2024":         "BJP Trend 21→24",
+                    "TMC_trend_2021_2024":         "TMC Trend 21→24",
+                }))
+        st.dataframe(disp, use_container_width=True, hide_index=True)
+
+
 # ── Possibilities view ────────────────────────────────────────────────────────
 
 def _parse_m_pct(v):
@@ -936,7 +1173,7 @@ def main():
 
     with st.sidebar:
         st.header("Select View")
-        view = st.radio("", ["State Summary", "Possibilities", "SIR Impact 21→26", "SIR Impact 24→26", "By District", "By Constituency"],
+        view = st.radio("", ["State Summary", "Predictions", "Possibilities", "SIR Impact 21→26", "SIR Impact 24→26", "By District", "By Constituency"],
                         label_visibility="collapsed")
 
         sel_dist, sel_const = None, None
@@ -952,6 +1189,8 @@ def main():
 
     if view == "State Summary":
         show_state(df)
+    elif view == "Predictions":
+        show_prediction()
     elif view == "Possibilities":
         show_possibilities(df)
     elif view == "SIR Impact 21→26":
