@@ -23,13 +23,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-_TMC = {"AITC", "AITMC", "TMC", "TRINAMOOL"}
+_TMC = {"AITC", "AITMC", "TMC", "TRINAMOOL", "ALL INDIA TRINAMOOL CONGRESS"}
+_BJP = {"BJP", "BHARATIYA JANATA PARTY"}
+_NOTA = {"NOTA", "NONE OF THE ABOVE"}
 
 def norm(p):
     if pd.isna(p):
         return "UNKNOWN"
     s = str(p).strip().upper()
-    return "TMC" if s in _TMC else s
+    if s in _TMC:  return "TMC"
+    if s in _BJP:  return "BJP"
+    if s in _NOTA: return "NOTA"
+    return s
 
 # Maps election district names → demography district name
 # Newer districts (Alipurduar, Jhargram, Kalimpong) have no demography entry
@@ -128,6 +133,49 @@ def load_demography_ac():
     return df[["ac_no", "hindu_pct", "muslim_pct", "christian_pct", "buddhist_pct", "majority"]]
 
 
+@st.cache_data(show_spinner="Reading SIR deletion data …")
+def load_sir():
+    df = pd.read_csv("SIR 27 lakh deletion.csv", encoding="cp1252", header=1, skiprows=[0])
+    df.columns = df.columns.str.strip()
+    df = df.rename(columns={"AC No.": "ac_no", "SIR 27 lakh deletions": "sir_27l"})
+    df["ac_no"]  = pd.to_numeric(df["ac_no"], errors="coerce")
+    df["sir_27l"] = pd.to_numeric(
+        df["sir_27l"].astype(str).str.replace(",", "", regex=False), errors="coerce"
+    ).fillna(0)
+    return df[["ac_no", "sir_27l"]]
+
+
+@st.cache_data(show_spinner="Reading 2026 results …")
+def load_results():
+    df = pd.read_csv("results.csv")
+    df.columns = df.columns.str.strip()
+    df = df.rename(columns={"Constituency No.": "ac_no"})
+    df["ac_no"]  = pd.to_numeric(df["ac_no"], errors="coerce")
+    df["Votes"]  = pd.to_numeric(df["Votes"], errors="coerce").fillna(0)
+    df["Party"]  = df["Party"].apply(norm)
+
+    rows = []
+    for ac_no, g in df.groupby("ac_no"):
+        tv  = g["Votes"].sum()
+        tmc = g.loc[g["Party"] == "TMC", "Votes"].sum()
+        bjp = g.loc[g["Party"] == "BJP", "Votes"].sum()
+        won = g[g["Status"] == "won"]
+        winner = won.iloc[0]["Party"] if len(won) else None
+        sorted_votes = g.sort_values("Votes", ascending=False)
+        winner_votes = sorted_votes.iloc[0]["Votes"] if len(sorted_votes) > 0 else 0
+        runner_votes = sorted_votes.iloc[1]["Votes"] if len(sorted_votes) > 1 else 0
+        margin_26 = winner_votes - runner_votes
+        top3 = (g[~g["Party"].isin({"TMC", "BJP", "NOTA", "UNKNOWN"})]
+                .groupby("Party")["Votes"].sum().nlargest(3))
+        r = {"ac_no": int(ac_no), "tv_26": tv,
+             "tmc_26": tmc, "bjp_26": bjp, "winner_26": winner, "margin_26": margin_26}
+        for i, (p, v) in enumerate(top3.items(), 1):
+            r[f"p{i}_26"] = p
+            r[f"v{i}_26"] = v
+        rows.append(r)
+    return pd.DataFrame(rows)
+
+
 # ── Aggregation ────────────────────────────────────────────────────────────────
 
 def agg_year(df, has_nota):
@@ -189,6 +237,10 @@ def load_master():
         )
         m = m.merge(tmp, on="ac_no", how="left")
     m = m.merge(load_demography_ac(), on="ac_no", how="left")
+    res = load_results()
+    m = m.merge(res, on="ac_no", how="left")
+    m.loc[m["tv_26"].notna(), "votes_26"] = m.loc[m["tv_26"].notna(), "tv_26"]
+    m = m.merge(load_sir(), on="ac_no", how="left")
     return m
 
 
@@ -209,6 +261,10 @@ def pct(n, d):
 
 
 YEARS = [("19", "2019", "Lok Sabha"), ("21", "2021", "Vidhan Sabha"), ("24", "2024", "Lok Sabha")]
+
+_TMC_COLOR = "#2CA02C"   # green
+_BJP_COLOR = "#FF9933"   # saffron
+_PARTY_COLORS = {"TMC": _TMC_COLOR, "BJP": _BJP_COLOR}
 
 _DEMO_COLS   = ["hindu_pct", "muslim_pct", "christian_pct", "buddhist_pct", "majority"]
 _DEMO_LABELS = {
@@ -236,6 +292,22 @@ def gender_metrics(male, female, third):
     c3, c4 = st.columns(2)
     c3.metric("Third-gender voters", fmt(third))
     c4.metric("M : F ratio (2026)",  ratio_str)
+
+
+def show_voter_roll_info(el24, el26, sir_27l):
+    """Render voter roll reduction and SIR deletions as metric cards."""
+    st.markdown("#### Voter Roll Change (2024 → 2026)")
+    drop = el24 - el26 if (el24 and el26) else 0
+    try:
+        drop_pct = drop / el24 * 100
+    except (TypeError, ZeroDivisionError):
+        drop_pct = 0.0
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Registered Voters 2024", fmt(el24))
+    c2.metric("Registered Voters 2026", fmt(el26))
+    c3.metric("Voter Roll Reduction",   fmt(drop),
+              delta=f"−{drop_pct:.1f}%", delta_color="inverse")
+    c4.metric("SIR 27-lakh Deletions",  fmt(sir_27l))
 
 
 # ── Demography helper ──────────────────────────────────────────────────────────
@@ -302,22 +374,41 @@ def show_constituency(row):
         except (TypeError, ValueError):
             pass
 
-    el26, tv26 = row.get("electors_26"), row.get("votes_26")
+    el26  = row.get("electors_26")
+    tv26  = row.get("votes_26")
+    tmc26 = row.get("tmc_26")
+    bjp26 = row.get("bjp_26")
+    win26 = row.get("winner_26")
+    others26 = []
+    for i in range(1, 4):
+        p, v = row.get(f"p{i}_26"), row.get(f"v{i}_26")
+        if pd.notna(p) and pd.notna(v):
+            others26.append(f"{p}: {fmt(v)} ({pct(v, tv26)})")
+    result_note = f"  ✓ {win26} won" if pd.notna(win26) else ""
     table.append({
-        "Year": "2026", "Election": "Vidhan Sabha",
+        "Year": f"2026{result_note}", "Election": "Vidhan Sabha",
         "Voters": fmt(el26), "Votes Cast": fmt(tv26), "Turnout": pct(tv26, el26),
-        "TMC": "—", "TMC %": "—", "BJP": "—", "BJP %": "—", "Others": "—",
+        "TMC": fmt(tmc26), "TMC %": pct(tmc26, tv26),
+        "BJP": fmt(bjp26), "BJP %": pct(bjp26, tv26),
+        "Others": "  |  ".join(others26) or "—",
     })
+    try:
+        bar_data += [
+            {"Year": "2026", "Party": "TMC", "Vote %": float(tmc26) / float(tv26) * 100},
+            {"Year": "2026", "Party": "BJP", "Vote %": float(bjp26) / float(tv26) * 100},
+        ]
+    except (TypeError, ValueError):
+        pass
 
-    st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True, height=210)
 
     if bar_data:
-        tab1, tab2 = st.tabs(["TMC vs BJP Trend", "2024 Vote Breakdown"])
+        tab1, tab2, tab3 = st.tabs(["TMC vs BJP Trend", "2024 Vote Breakdown", "2026 Vote Breakdown"])
         with tab1:
             fig = px.bar(
                 pd.DataFrame(bar_data), x="Year", y="Vote %", color="Party",
                 barmode="group",
-                color_discrete_map={"TMC": "#2CA02C", "BJP": "#FF7F0E"},
+                color_discrete_map=_PARTY_COLORS,
                 title="TMC vs BJP Vote Share (%)",
             )
             fig.update_layout(yaxis_range=[0, 100], height=360)
@@ -336,13 +427,41 @@ def show_constituency(row):
             if pie_rows:
                 fig2 = px.pie(
                     pd.DataFrame(pie_rows), names="Party", values="Votes",
+                    color="Party",
+                    color_discrete_map=_PARTY_COLORS,
                     title="2024 (Lok Sabha) Vote Breakdown",
-                    color_discrete_map={"TMC": "#2CA02C", "BJP": "#FF7F0E"},
                 )
                 fig2.update_layout(height=360)
                 st.plotly_chart(fig2, use_container_width=True)
+        with tab3:
+            pie26 = []
+            for key, label in [("tmc_26", "TMC"), ("bjp_26", "BJP")]:
+                v = row.get(key)
+                if pd.notna(v) and float(v) > 0:
+                    pie26.append({"Party": label, "Votes": float(v)})
+            for i in range(1, 4):
+                p, v = row.get(f"p{i}_26"), row.get(f"v{i}_26")
+                if pd.notna(p) and pd.notna(v):
+                    pie26.append({"Party": p, "Votes": float(v)})
+            if pie26:
+                fig3 = px.pie(
+                    pd.DataFrame(pie26), names="Party", values="Votes",
+                    color="Party",
+                    color_discrete_map=_PARTY_COLORS,
+                    title="2026 (Vidhan Sabha) Vote Breakdown",
+                )
+                fig3.update_layout(height=360)
+                st.plotly_chart(fig3, use_container_width=True)
+            else:
+                st.caption("2026 results not yet available for this constituency.")
 
     st.divider()
+    show_voter_roll_info(
+        pd.to_numeric(row.get("electors_24"), errors="coerce"),
+        pd.to_numeric(row.get("electors_26"), errors="coerce"),
+        pd.to_numeric(row.get("sir_27l"),     errors="coerce"),
+    )
+
     st.markdown("#### 2026 Voter Demographics")
     gender_metrics(row.get("male_26"), row.get("female_26"), row.get("third_26"))
 
@@ -401,22 +520,32 @@ def show_district(df, district):
         except (TypeError, ValueError, ZeroDivisionError):
             pass
 
-    el26 = pd.to_numeric(sub["electors_26"], errors="coerce").sum()
-    tv26 = pd.to_numeric(sub["votes_26"],    errors="coerce").sum()
+    el26  = pd.to_numeric(sub["electors_26"], errors="coerce").sum()
+    tv26  = pd.to_numeric(sub["votes_26"],    errors="coerce").sum()
+    tmc26 = pd.to_numeric(sub["tmc_26"],      errors="coerce").sum()
+    bjp26 = pd.to_numeric(sub["bjp_26"],      errors="coerce").sum()
     sum_rows.append({
         "Year": "2026", "Election": "Vidhan Sabha",
         "Voters": fmt(el26), "Votes Cast": fmt(tv26), "Turnout": pct(tv26, el26),
-        "TMC": "—", "TMC %": "—", "BJP": "—", "BJP %": "—",
+        "TMC": fmt(tmc26), "TMC %": pct(tmc26, tv26),
+        "BJP": fmt(bjp26), "BJP %": pct(bjp26, tv26),
     })
+    try:
+        bar_data += [
+            {"Year": "2026", "Party": "TMC", "Vote %": tmc26 / tv26 * 100},
+            {"Year": "2026", "Party": "BJP", "Vote %": bjp26 / tv26 * 100},
+        ]
+    except (TypeError, ValueError, ZeroDivisionError):
+        pass
 
     st.markdown("**District Totals**")
-    st.dataframe(pd.DataFrame(sum_rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(sum_rows), use_container_width=True, hide_index=True, height=210)
 
     if bar_data:
         fig = px.bar(
             pd.DataFrame(bar_data), x="Year", y="Vote %", color="Party",
             barmode="group",
-            color_discrete_map={"TMC": "#2CA02C", "BJP": "#FF7F0E"},
+            color_discrete_map=_PARTY_COLORS,
             title=f"{district}: TMC vs BJP Vote Share (%)",
         )
         fig.update_layout(yaxis_range=[0, 100])
@@ -432,13 +561,21 @@ def show_district(df, district):
             bjp = r.get(f"bjp_{yr}")
             row[f"TMC {full}%"] = pct(tmc, tv)
             row[f"BJP {full}%"] = pct(bjp, tv)
+        row["2026 TMC %"]  = pct(r.get("tmc_26"), r.get("votes_26"))
+        row["2026 BJP %"]  = pct(r.get("bjp_26"), r.get("votes_26"))
         row["2026 Turnout"] = pct(r.get("votes_26"), r.get("electors_26"))
+        row["2026 Winner"] = r.get("winner_26") or "—"
         for col, lbl in _DEMO_LABELS.items():
             row[lbl] = r.get(col)
         rows.append(row)
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
     st.divider()
+    el24_d  = pd.to_numeric(sub["electors_24"], errors="coerce").sum()
+    el26_d  = pd.to_numeric(sub["electors_26"], errors="coerce").sum()
+    sir27_d = pd.to_numeric(sub["sir_27l"],     errors="coerce").sum()
+    show_voter_roll_info(el24_d, el26_d, sir27_d)
+
     st.markdown("#### 2026 Voter Demographics")
     male  = pd.to_numeric(sub["male_26"],   errors="coerce").sum()
     female= pd.to_numeric(sub["female_26"], errors="coerce").sum()
@@ -492,27 +629,51 @@ def show_state(df):
         except (TypeError, ValueError, ZeroDivisionError):
             pass
 
-    el26 = pd.to_numeric(df["electors_26"], errors="coerce").sum()
-    tv26 = pd.to_numeric(df["votes_26"],    errors="coerce").sum()
+    el26  = pd.to_numeric(df["electors_26"], errors="coerce").sum()
+    tv26  = pd.to_numeric(df["votes_26"],    errors="coerce").sum()
+    tmc26 = pd.to_numeric(df["tmc_26"],      errors="coerce").sum()
+    bjp26 = pd.to_numeric(df["bjp_26"],      errors="coerce").sum()
     sum_rows.append({
         "Year": "2026", "Election": "Vidhan Sabha",
         "Total Voters": fmt(el26), "Votes Cast": fmt(tv26), "Turnout": pct(tv26, el26),
-        "TMC": "—", "TMC %": "—", "BJP": "—", "BJP %": "—",
+        "TMC": fmt(tmc26), "TMC %": pct(tmc26, tv26),
+        "BJP": fmt(bjp26), "BJP %": pct(bjp26, tv26),
     })
+    try:
+        bar_data += [
+            {"Year": "2026", "Party": "TMC", "Vote %": tmc26 / tv26 * 100},
+            {"Year": "2026", "Party": "BJP", "Vote %": bjp26 / tv26 * 100},
+        ]
+    except (TypeError, ValueError, ZeroDivisionError):
+        pass
 
-    st.dataframe(pd.DataFrame(sum_rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(sum_rows), use_container_width=True, hide_index=True, height=210)
 
     if bar_data:
         fig = px.bar(
             pd.DataFrame(bar_data), x="Year", y="Vote %", color="Party",
             barmode="group",
-            color_discrete_map={"TMC": "#2CA02C", "BJP": "#FF7F0E"},
+            color_discrete_map=_PARTY_COLORS,
             title="State-wide TMC vs BJP Vote Share (%)",
         )
         fig.update_layout(yaxis_range=[0, 100])
         st.plotly_chart(fig, use_container_width=True)
 
+    el24_tot  = pd.to_numeric(df["electors_24"], errors="coerce").sum()
+    el26_tot  = pd.to_numeric(df["electors_26"], errors="coerce").sum()
+    sir27_tot = pd.to_numeric(df["sir_27l"],     errors="coerce").sum()
+    show_voter_roll_info(el24_tot, el26_tot, sir27_tot)
+
     work = compute_impacts(df)
+
+    # Compute margin analysis columns
+    work["voter_roll_drop"] = (
+        pd.to_numeric(work["electors_24"], errors="coerce") -
+        pd.to_numeric(work["electors_26"], errors="coerce")
+    ).clip(lower=0).fillna(0)
+    work["margin_26_n"] = pd.to_numeric(work["margin_26"], errors="coerce")
+    work["roll_margin_ratio"] = (work["voter_roll_drop"] / work["margin_26_n"].replace(0, float("nan"))).round(2)
+    work["sir_margin_ratio"]  = (pd.to_numeric(work["sir_27l"], errors="coerce") / work["margin_26_n"].replace(0, float("nan"))).round(2)
 
     # ── Build display table ───────────────────────────────────────────────────
     st.markdown("**All 294 Constituencies**")
@@ -526,16 +687,24 @@ def show_state(df):
             f"tmc_{yr}":         f"{full} TMC",
             f"bjp_{yr}":         f"{full} BJP",
         })
-    cols += ["electors_26", "votes_26", "imp21", "imp24"] + _DEMO_COLS
+    cols += ["electors_26", "votes_26", "tmc_26", "bjp_26", "winner_26",
+             "margin_26_n", "voter_roll_drop", "roll_margin_ratio",
+             "sir_27l", "sir_margin_ratio"] + _DEMO_COLS
     renames.update({
-        "electors_26": "2026 Total Voters",
-        "votes_26":    "2026 Votes Cast",
-        "imp21":       "Vote Drop / Margin (21→26)",
-        "imp24":       "Vote Drop / Margin (24→26)",
+        "electors_26":       "2026 Total Voters",
+        "votes_26":          "2026 Votes Cast",
+        "tmc_26":            "2026 TMC",
+        "bjp_26":            "2026 BJP",
+        "winner_26":         "2026 Winner",
+        "margin_26_n":       "2026 Margin",
+        "voter_roll_drop":   "Roll Deletion (24→26)",
+        "roll_margin_ratio": "Roll Del / Margin",
+        "sir_27l":           "SIR Deletions",
+        "sir_margin_ratio":  "SIR Del / Margin",
         **_DEMO_LABELS,
     })
 
-    _skip = {"AC No", "Constituency", "District"} | set(_DEMO_LABELS.values())
+    _skip = {"AC No", "Constituency", "District", "2026 Winner"} | set(_DEMO_LABELS.values())
     disp = work[cols].rename(columns=renames).copy()
     for c in disp.columns:
         if c not in _skip:
@@ -705,9 +874,9 @@ _PRED_ORDER = ["TMC Win", "TMC Contested", "BJP Possible", "BJP Contested", "BJP
 _PRED_COLORS = {
     "TMC Win":       "#1a7a1a",
     "TMC Contested": "#5cb85c",
-    "BJP Possible":  "#ffbb78",
-    "BJP Contested": "#ff7f0e",
-    "BJP Win":       "#d62728",
+    "BJP Possible":  "#FFD580",
+    "BJP Contested": "#FF9933",
+    "BJP Win":       "#CC5500",
 }
 
 
@@ -1060,7 +1229,7 @@ def show_possibilities(df):
         fig_pie = px.pie(
             pie_df, names="Outcome", values="Seats",
             color="Outcome",
-            color_discrete_map={"TMC": "#2CA02C", "BJP possible": "#FF7F0E"},
+            color_discrete_map={"TMC": _TMC_COLOR, "BJP possible": _BJP_COLOR},
             title="Overall Seat Outlook",
             hole=0.45,
         )
@@ -1074,7 +1243,7 @@ def show_possibilities(df):
         fig_dist = px.bar(
             dist_df, x="district", y="Seats", color="classification",
             barmode="stack",
-            color_discrete_map={"TMC": "#2CA02C", "BJP possible": "#FF7F0E"},
+            color_discrete_map={"TMC": _TMC_COLOR, "BJP possible": _BJP_COLOR},
             title="Outlook by District",
         )
         fig_dist.update_layout(
@@ -1094,7 +1263,7 @@ def show_possibilities(df):
     fig_reason = px.bar(
         reason_df, x="Seats", y="reason", color="classification",
         orientation="h",
-        color_discrete_map={"TMC": "#2CA02C", "BJP possible": "#FF7F0E"},
+        color_discrete_map={"TMC": _TMC_COLOR, "BJP possible": _BJP_COLOR},
         title="How many seats matched each rule",
         text="Seats",
     )
@@ -1155,6 +1324,186 @@ def show_possibilities(df):
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
+# ── Margin vs Deletion analysis ───────────────────────────────────────────────
+
+def _show_margin_analysis(df, deletion_col, deletion_label, title, description):
+    st.subheader(title)
+    st.caption(description)
+
+    work = df.copy()
+    work["margin_26"]  = pd.to_numeric(work["margin_26"],  errors="coerce")
+    work[deletion_col] = pd.to_numeric(work[deletion_col], errors="coerce").fillna(0)
+
+    valid = work[work["margin_26"].notna() & (work["margin_26"] > 0)].copy()
+    valid["winner_26"] = valid["winner_26"].fillna("Others")
+    valid["status"]    = (valid["margin_26"] < valid[deletion_col]).map(
+        {True: "Margin < Deletion", False: "Margin ≥ Deletion"}
+    )
+    valid["ratio"] = (valid[deletion_col] / valid["margin_26"]).round(2)
+
+    total   = len(valid)
+    vuln    = (valid["status"] == "Margin < Deletion").sum()
+    tmc_tot = (valid["winner_26"] == "TMC").sum()
+    bjp_tot = (valid["winner_26"] == "BJP").sum()
+    tmc_v   = ((valid["winner_26"] == "TMC") & (valid["status"] == "Margin < Deletion")).sum()
+    bjp_v   = ((valid["winner_26"] == "BJP") & (valid["status"] == "Margin < Deletion")).sum()
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Seats (2026 results)", total)
+    c2.metric(f"Margin < {deletion_label}", vuln,
+              delta=f"{vuln/max(total,1)*100:.0f}% of seats", delta_color="inverse")
+    c3.metric("TMC Seats: Margin < Deletion", f"{tmc_v} / {tmc_tot}",
+              delta=f"{tmc_v/max(tmc_tot,1)*100:.0f}% of TMC wins", delta_color="inverse")
+    c4.metric("BJP Seats: Margin < Deletion", f"{bjp_v} / {bjp_tot}",
+              delta=f"{bjp_v/max(bjp_tot,1)*100:.0f}% of BJP wins", delta_color="inverse")
+
+    st.info(
+        f"**{vuln} of {total} seats** have a 2026 victory margin smaller than the {deletion_label}.  "
+        f"Of these, **{tmc_v} are TMC-won** and **{bjp_v} are BJP-won** seats."
+    )
+
+    col_a, col_b = st.columns([1, 2])
+    main_winners = valid[valid["winner_26"].isin(["TMC", "BJP"])].copy()
+
+    with col_a:
+        party_df = (main_winners
+                    .groupby(["winner_26", "status"])
+                    .size().reset_index(name="Seats"))
+        party_df.columns = ["Party", "Status", "Seats"]
+        fig_bar = px.bar(
+            party_df, x="Party", y="Seats", color="Status",
+            barmode="stack",
+            color_discrete_map={"Margin < Deletion": "#D62728", "Margin ≥ Deletion": "#2CA02C"},
+            title=f"Margin vs {deletion_label} by Party",
+            text="Seats",
+        )
+        fig_bar.update_traces(textposition="inside", textfont_size=13)
+        fig_bar.update_layout(height=360, legend_title="", margin=dict(t=40, b=10))
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    with col_b:
+        dist_df = (main_winners
+                   .groupby(["district", "status"])
+                   .size().reset_index(name="Seats"))
+        dist_df.columns = ["District", "Status", "Seats"]
+        fig_dist = px.bar(
+            dist_df, x="District", y="Seats", color="Status",
+            barmode="stack",
+            color_discrete_map={"Margin < Deletion": "#D62728", "Margin ≥ Deletion": "#2CA02C"},
+            title=f"Margin vs {deletion_label} by District",
+        )
+        fig_dist.update_layout(
+            height=360, xaxis_tickangle=-45, legend_title="",
+            margin=dict(t=40, b=100),
+        )
+        st.plotly_chart(fig_dist, use_container_width=True)
+
+    # Scatter: deletion vs margin, diagonal = equality line
+    max_val = max(
+        float(main_winners[deletion_col].max() or 0),
+        float(main_winners["margin_26"].max() or 0),
+    ) * 1.05
+    fig_sc = px.scatter(
+        main_winners, x=deletion_col, y="margin_26",
+        color="winner_26",
+        color_discrete_map=_PARTY_COLORS,
+        hover_name="ac_name",
+        hover_data={"district": True, "winner_26": False,
+                    deletion_col: ":,", "margin_26": ":,", "ratio": ":.2f"},
+        labels={
+            deletion_col: deletion_label,
+            "margin_26":  "2026 Victory Margin",
+            "winner_26":  "Winner",
+        },
+        title=f"2026 Margin vs {deletion_label}  (each dot = one constituency)",
+    )
+    fig_sc.add_shape(type="line", x0=0, y0=0, x1=max_val, y1=max_val,
+                     line=dict(color="grey", dash="dot", width=1.5))
+    fig_sc.add_annotation(
+        x=max_val * 0.6, y=max_val * 0.6,
+        text="Margin = Deletion",
+        showarrow=False,
+        font=dict(color="grey", size=11),
+    )
+    fig_sc.update_layout(height=450, legend_title="Winner", margin=dict(t=40, b=10))
+    st.plotly_chart(fig_sc, use_container_width=True)
+
+    st.divider()
+
+    f1, f2 = st.columns(2)
+    with f1:
+        status_filter = st.radio(
+            "Filter by status:",
+            ["All", "Margin < Deletion (Vulnerable)", "Margin ≥ Deletion (Safe)"],
+            horizontal=True, index=0,
+            key=f"sf_{deletion_col}",
+        )
+    with f2:
+        party_filter = st.radio(
+            "Filter by winner:",
+            ["All", "TMC", "BJP"],
+            horizontal=True, index=0,
+            key=f"pf_{deletion_col}",
+        )
+
+    view = valid.copy()
+    if status_filter == "Margin < Deletion (Vulnerable)":
+        view = view[view["status"] == "Margin < Deletion"]
+    elif status_filter == "Margin ≥ Deletion (Safe)":
+        view = view[view["status"] == "Margin ≥ Deletion"]
+    if party_filter != "All":
+        view = view[view["winner_26"] == party_filter]
+
+    rows = []
+    for _, r in view.sort_values("margin_26", ascending=True).iterrows():
+        rows.append({
+            "AC No":             int(r["ac_no"]),
+            "Constituency":      r["ac_name"],
+            "District":          r["district"],
+            "Winner":            r["winner_26"],
+            "Margin 2026":       int(r["margin_26"]),
+            deletion_label:      int(r[deletion_col]) if r[deletion_col] > 0 else 0,
+            "Ratio (Del/Margin)":r["ratio"],
+            "Status":            r["status"],
+            "Muslim %":          r.get("muslim_pct", "—"),
+        })
+    st.caption(f"Showing {len(rows)} seats — sorted by margin ascending (most vulnerable first)")
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+def show_margin_vs_roll(df):
+    work = df.copy()
+    work["voter_roll_drop"] = (
+        pd.to_numeric(work["electors_24"], errors="coerce") -
+        pd.to_numeric(work["electors_26"], errors="coerce")
+    ).clip(lower=0).fillna(0)
+    _show_margin_analysis(
+        work,
+        deletion_col="voter_roll_drop",
+        deletion_label="Voter Roll Reduction",
+        title="2026 Victory Margin vs Voter Roll Reduction (2024 → 2026)",
+        description=(
+            "Compares each constituency's 2026 winning margin against the total voter roll reduction "
+            "between 2024 and 2026. Seats where the margin is **less than** the voter roll reduction "
+            "are marked Vulnerable — the number of removed voters exceeds the winning margin."
+        ),
+    )
+
+
+def show_margin_vs_sir(df):
+    _show_margin_analysis(
+        df,
+        deletion_col="sir_27l",
+        deletion_label="SIR Deletions",
+        title="2026 Victory Margin vs SIR 27-Lakh Deletions",
+        description=(
+            "Compares each constituency's 2026 winning margin against the SIR-identified deletions "
+            "from the 27-lakh voter roll purge. Seats where the margin is **less than** the SIR "
+            "deletions are marked Vulnerable — the purge alone could have swung the result."
+        ),
+    )
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -1171,38 +1520,59 @@ def main():
         st.info("Make sure all data files are in the same folder as app.py and run: pip install -r requirements.txt")
         return
 
+    if "active_section" not in st.session_state:
+        st.session_state.active_section = "summary"
+
+    def _on_summary(): st.session_state.active_section = "summary"
+    def _on_pred():    st.session_state.active_section = "prediction"
+
     with st.sidebar:
         st.header("Select View")
-        view = st.radio("", ["State Summary", "Predictions", "Possibilities", "SIR Impact 21→26", "SIR Impact 24→26", "By District", "By Constituency"],
-                        label_visibility="collapsed")
+        view = st.radio("", [
+                            "State Summary", "District Summary", "Constituency Summary",
+                            "Margin vs Roll Deletion", "Margin vs SIR Deletion",
+                        ],
+                        label_visibility="collapsed", on_change=_on_summary)
 
         sel_dist, sel_const = None, None
-        if view == "By District":
+        if view == "District Summary":
             districts = sorted(df["district"].dropna().unique().tolist())
             sel_dist = st.selectbox("District", districts)
-        elif view == "By Constituency":
+        elif view == "Constituency Summary":
             opts = sorted(
                 f"{int(r.ac_no):03d} – {r.ac_name} ({r.district})"
                 for _, r in df.iterrows()
             )
             sel_const = st.selectbox("Constituency", opts)
 
-    if view == "State Summary":
-        show_state(df)
-    elif view == "Predictions":
-        show_prediction()
-    elif view == "Possibilities":
-        show_possibilities(df)
-    elif view == "SIR Impact 21→26":
-        show_sir_impact(df)
-    elif view == "SIR Impact 24→26":
-        show_sir_impact_2024(df)
-    elif view == "By District" and sel_dist:
-        show_district(df, sel_dist)
-    elif view == "By Constituency" and sel_const:
-        ac_no = int(sel_const.split("–")[0].strip())
-        row = df[df["ac_no"] == ac_no].iloc[0]
-        show_constituency(row)
+        st.divider()
+        st.header("Predictions")
+        pred_view = st.radio("", ["Predictions", "Possibilities",
+                                   "SIR Impact 21→26", "SIR Impact 24→26"],
+                             label_visibility="collapsed", key="pred_radio", on_change=_on_pred)
+
+    if st.session_state.active_section == "summary":
+        if view == "State Summary":
+            show_state(df)
+        elif view == "District Summary" and sel_dist:
+            show_district(df, sel_dist)
+        elif view == "Constituency Summary" and sel_const:
+            ac_no = int(sel_const.split("–")[0].strip())
+            row = df[df["ac_no"] == ac_no].iloc[0]
+            show_constituency(row)
+        elif view == "Margin vs Roll Deletion":
+            show_margin_vs_roll(df)
+        elif view == "Margin vs SIR Deletion":
+            show_margin_vs_sir(df)
+    else:
+        if pred_view == "Predictions":
+            show_prediction()
+        elif pred_view == "Possibilities":
+            show_possibilities(df)
+        elif pred_view == "SIR Impact 21→26":
+            show_sir_impact(df)
+        elif pred_view == "SIR Impact 24→26":
+            show_sir_impact_2024(df)
 
 
 if __name__ == "__main__":
