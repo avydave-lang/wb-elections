@@ -244,6 +244,147 @@ def load_master():
     return m
 
 
+# ── Parliamentary loaders ──────────────────────────────────────────────────────
+
+@st.cache_data(show_spinner="Reading 2019 PC data …")
+def _raw_2019_pc():
+    df = pd.read_excel(
+        "425581050_34.DetailsOfAssemblySegmentOfPC 2019.xls",
+        header=2, dtype=str, engine="calamine",
+    )
+    df.columns = ["state","pc_no","pc_name","ac_no","ac_name",
+                  "electors","_ts","nota","cand","party","votes"]
+    df = df[df["state"].str.contains("West Bengal", case=False, na=False)].copy()
+    for c in ["ac_no","pc_no","electors","nota","votes"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+    df["party"] = df["party"].apply(norm)
+    return df
+
+
+@st.cache_data(show_spinner="Reading 2024 PC data …")
+def _raw_2024_pc():
+    df = pd.read_excel(
+        "34-Details-Of-Assembly-Segment-Of-PC 2024.xls",
+        header=1, dtype=str, engine="calamine",
+    )
+    df.columns = ["state","pc_no","pc_name","_elpc","ac_no","ac_name",
+                  "electors","_ts","nota","cand","party","votes"]
+    df = df[df["state"].str.contains("West Bengal", case=False, na=False)].copy()
+    for c in ["ac_no","pc_no","electors","nota","votes"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+    df["party"] = df["party"].apply(norm)
+    return df
+
+
+def _agg_ls_to_pc(df, has_nota):
+    rows = []
+    for (pc_no, pc_name), g in df.groupby(["pc_no","pc_name"]):
+        g_ac = g.drop_duplicates("ac_no")
+        el   = g_ac["electors"].sum()
+        nota = g_ac["nota"].sum() if has_nota else 0
+        tv   = g["votes"].sum() + nota
+        tmc  = g.loc[g["party"]=="TMC","votes"].sum()
+        bjp  = g.loc[g["party"]=="BJP","votes"].sum()
+        top3 = (g[~g["party"].isin({"TMC","BJP","NOTA","UNKNOWN"})]
+                .groupby("party")["votes"].sum().nlargest(3))
+        winner = "TMC" if tmc > bjp else ("BJP" if bjp > tmc else "Other")
+        margin = abs(int(tmc) - int(bjp))
+        r = {"pc_no": int(pc_no), "pc_name": str(pc_name),
+             "electors": el, "total_votes": tv, "tmc": tmc, "bjp": bjp,
+             "winner": winner, "margin": margin}
+        for i, (p, v) in enumerate(top3.items(), 1):
+            r[f"p{i}"] = str(p); r[f"v{i}"] = float(v)
+        rows.append(r)
+    return pd.DataFrame(rows).sort_values("pc_no").reset_index(drop=True)
+
+
+@st.cache_data(show_spinner="Building parliamentary dataset …")
+def load_parliament():
+    r19 = _raw_2019_pc()
+    r24 = _raw_2024_pc()
+
+    pc_map = r19[["ac_no","pc_no","pc_name"]].drop_duplicates("ac_no")
+
+    ls19 = _agg_ls_to_pc(r19, has_nota=True)
+    ls24 = _agg_ls_to_pc(r24, has_nota=True)
+
+    # 2021 VS: aggregate AC-level results to PC
+    a21 = agg_year(raw_2021(), False).merge(pc_map, on="ac_no", how="left")
+
+    def _ac_winner(row):
+        tmc = float(row.get("tmc") or 0)
+        bjp = float(row.get("bjp") or 0)
+        v1  = float(row.get("v1")  or 0)
+        mx  = max(tmc, bjp, v1)
+        if mx == 0: return None
+        return "TMC" if mx == tmc else ("BJP" if mx == bjp else "Other")
+
+    a21["ac_winner"] = a21.apply(_ac_winner, axis=1)
+
+    vs21_rows = []
+    for (pc_no, pc_name), g in a21.groupby(["pc_no","pc_name"]):
+        el   = g["electors"].sum(); tv = g["total_votes"].sum()
+        tmc  = g["tmc"].sum();      bjp = g["bjp"].sum()
+        tmc_s = (g["ac_winner"]=="TMC").sum()
+        bjp_s = (g["ac_winner"]=="BJP").sum()
+        oth_s = g["ac_winner"].notna().sum() - tmc_s - bjp_s
+        winner = "TMC" if tmc_s > bjp_s else ("BJP" if bjp_s > tmc_s else "Split")
+        ov = {}
+        for _, row in g.iterrows():
+            for i in range(1, 4):
+                p, v = row.get(f"p{i}"), row.get(f"v{i}")
+                if pd.notna(p) and pd.notna(v):
+                    try: ov[str(p)] = ov.get(str(p), 0) + float(v)
+                    except: pass
+        top3 = sorted(ov.items(), key=lambda x: -x[1])[:3]
+        r = {"pc_no": int(pc_no), "pc_name": str(pc_name),
+             "electors": el, "total_votes": tv, "tmc": tmc, "bjp": bjp,
+             "tmc_seats": int(tmc_s), "bjp_seats": int(bjp_s), "other_seats": int(oth_s),
+             "winner": winner, "margin": abs(int(tmc) - int(bjp))}
+        for i, (p, v) in enumerate(top3, 1):
+            r[f"p{i}"] = p; r[f"v{i}"] = v
+        vs21_rows.append(r)
+    vs21 = pd.DataFrame(vs21_rows).sort_values("pc_no").reset_index(drop=True)
+
+    # 2026 VS: aggregate from master
+    master = load_master()
+    a26 = master[["ac_no","electors_26","votes_26","tmc_26","bjp_26","winner_26",
+                   "p1_26","v1_26","p2_26","v2_26","p3_26","v3_26"]].copy()
+    a26 = a26.merge(pc_map, on="ac_no", how="left")
+
+    vs26_rows = []
+    for (pc_no, pc_name), g in a26.groupby(["pc_no","pc_name"]):
+        el   = pd.to_numeric(g["electors_26"], errors="coerce").sum()
+        tv   = pd.to_numeric(g["votes_26"],    errors="coerce").sum()
+        tmc  = pd.to_numeric(g["tmc_26"],      errors="coerce").sum()
+        bjp  = pd.to_numeric(g["bjp_26"],      errors="coerce").sum()
+        tmc_s = (g["winner_26"]=="TMC").sum()
+        bjp_s = (g["winner_26"]=="BJP").sum()
+        oth_s = g["winner_26"].notna().sum() - tmc_s - bjp_s
+        winner = "TMC" if tmc_s > bjp_s else ("BJP" if bjp_s > tmc_s else "Split")
+        ov = {}
+        for _, row in g.iterrows():
+            for i in range(1, 4):
+                p, v = row.get(f"p{i}_26"), row.get(f"v{i}_26")
+                if pd.notna(p) and pd.notna(v):
+                    try: ov[str(p)] = ov.get(str(p), 0) + float(v)
+                    except: pass
+        top3 = sorted(ov.items(), key=lambda x: -x[1])[:3]
+        r = {"pc_no": int(pc_no), "pc_name": str(pc_name),
+             "electors": el, "total_votes": tv, "tmc": tmc, "bjp": bjp,
+             "tmc_seats": int(tmc_s), "bjp_seats": int(bjp_s), "other_seats": int(oth_s),
+             "winner": winner, "margin": abs(int(tmc) - int(bjp))}
+        for i, (p, v) in enumerate(top3, 1):
+            r[f"p{i}"] = p; r[f"v{i}"] = float(v)
+        vs26_rows.append(r)
+    vs26 = pd.DataFrame(vs26_rows).sort_values("pc_no").reset_index(drop=True)
+
+    return {
+        "ls19": ls19, "vs21": vs21, "ls24": ls24, "vs26": vs26,
+        "pc_names": sorted(ls19["pc_name"].tolist()),
+    }
+
+
 # ── Formatting helpers ─────────────────────────────────────────────────────────
 
 def fmt(n):
@@ -1504,6 +1645,252 @@ def show_margin_vs_sir(df):
     )
 
 
+# ── Parliamentary views ────────────────────────────────────────────────────────
+
+_PC_EL = [
+    ("ls19", "2019", "Lok Sabha",    True),
+    ("vs21", "2021", "Vidhan Sabha", False),
+    ("ls24", "2024", "Lok Sabha",    True),
+    ("vs26", "2026", "Vidhan Sabha", False),
+]
+_WIN_COLORS = {**_PARTY_COLORS, "Split": "#AEC7E8", "Other": "#7F7F7F"}
+
+
+def show_parliament_summary(pc_data):
+    st.subheader("West Bengal — Parliamentary Constituencies (42 seats)")
+    st.caption(
+        "2019 & 2024: actual Lok Sabha results.  "
+        "2021 & 2026: Vidhan Sabha assembly results aggregated to PC boundary."
+    )
+
+    # ── State-level summary table ─────────────────────────────────────────────
+    sum_rows, bar_data, seat_rows = [], [], []
+    for key, year, etype, is_ls in _PC_EL:
+        d = pc_data[key]
+        tmc_w = int((d["winner"] == "TMC").sum())
+        bjp_w = int((d["winner"] == "BJP").sum())
+        oth_w = len(d) - tmc_w - bjp_w
+        tmc_v = d["tmc"].sum(); bjp_v = d["bjp"].sum()
+        tv    = d["total_votes"].sum(); el = d["electors"].sum()
+        if is_ls:
+            won = f"TMC: {tmc_w}  |  BJP: {bjp_w}  |  Other: {oth_w}"
+        else:
+            tmc_s = int(d["tmc_seats"].sum()); bjp_s = int(d["bjp_seats"].sum())
+            won = f"TMC ACs: {tmc_s}  |  BJP ACs: {bjp_s}"
+        sum_rows.append({
+            "Year": year, "Election": etype, "Winners / PCs": won,
+            "TMC Votes": fmt(tmc_v), "TMC %": pct(tmc_v, tv),
+            "BJP Votes": fmt(bjp_v), "BJP %": pct(bjp_v, tv),
+            "Total Votes": fmt(tv),  "Turnout": pct(tv, el),
+        })
+        try:
+            bar_data += [
+                {"Year": year, "Party": "TMC", "Vote %": tmc_v / tv * 100},
+                {"Year": year, "Party": "BJP", "Vote %": bjp_v / tv * 100},
+            ]
+        except ZeroDivisionError:
+            pass
+        lbl = f"{year} ({etype[:2]})"
+        seat_rows += [
+            {"Election": lbl, "Party": "TMC", "Count": tmc_w},
+            {"Election": lbl, "Party": "BJP", "Count": bjp_w},
+        ]
+        if oth_w: seat_rows.append({"Election": lbl, "Party": "Other/Split", "Count": oth_w})
+
+    st.markdown("**State-level summary across 4 elections**")
+    st.dataframe(pd.DataFrame(sum_rows), use_container_width=True, hide_index=True, height=210)
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if bar_data:
+            fig = px.bar(
+                pd.DataFrame(bar_data), x="Year", y="Vote %", color="Party",
+                barmode="group", color_discrete_map=_PARTY_COLORS,
+                title="TMC vs BJP Vote Share (%) — all elections",
+            )
+            fig.update_layout(yaxis_range=[0, 100], height=340, margin=dict(t=40, b=10))
+            st.plotly_chart(fig, use_container_width=True)
+    with col_b:
+        fig2 = px.bar(
+            pd.DataFrame(seat_rows), x="Election", y="Count", color="Party",
+            barmode="stack",
+            color_discrete_map={**_PARTY_COLORS, "Other/Split": "#7F7F7F"},
+            text="Count",
+            title="PC-level seat outcome (42 total PCs per election)",
+        )
+        fig2.update_traces(textposition="inside", textfont_size=13)
+        fig2.update_layout(height=340, legend_title="", margin=dict(t=40, b=10))
+        st.plotly_chart(fig2, use_container_width=True)
+
+    # ── All-42-PCs table ─────────────────────────────────────────────────────
+    st.markdown("**All 42 Parliamentary Constituencies — winner & vote share per election**")
+    ls19 = pc_data["ls19"]
+
+    def _g(d, pc, col):
+        sub = d[d["pc_name"] == pc]
+        return sub.iloc[0][col] if len(sub) else None
+
+    rows = []
+    for _, r in ls19.sort_values("pc_no").iterrows():
+        pc = r["pc_name"]
+        rows.append({
+            "PC No":       int(r["pc_no"]),
+            "PC Name":     pc,
+            "2019 Winner": _g(pc_data["ls19"], pc, "winner"),
+            "2019 TMC %":  pct(_g(pc_data["ls19"],pc,"tmc"), _g(pc_data["ls19"],pc,"total_votes")),
+            "2019 BJP %":  pct(_g(pc_data["ls19"],pc,"bjp"), _g(pc_data["ls19"],pc,"total_votes")),
+            "2021 Winner": _g(pc_data["vs21"], pc, "winner"),
+            "2021 TMC ACs": _g(pc_data["vs21"], pc, "tmc_seats"),
+            "2021 BJP ACs": _g(pc_data["vs21"], pc, "bjp_seats"),
+            "2024 Winner": _g(pc_data["ls24"], pc, "winner"),
+            "2024 TMC %":  pct(_g(pc_data["ls24"],pc,"tmc"), _g(pc_data["ls24"],pc,"total_votes")),
+            "2024 BJP %":  pct(_g(pc_data["ls24"],pc,"bjp"), _g(pc_data["ls24"],pc,"total_votes")),
+            "2026 Winner": _g(pc_data["vs26"], pc, "winner"),
+            "2026 TMC ACs": _g(pc_data["vs26"], pc, "tmc_seats"),
+            "2026 BJP ACs": _g(pc_data["vs26"], pc, "bjp_seats"),
+        })
+    _skip_pc = {"PC No", "PC Name", "2019 Winner", "2021 Winner", "2024 Winner", "2026 Winner"}
+    disp = pd.DataFrame(rows)
+    for c in disp.columns:
+        if c not in _skip_pc and c not in ("2019 TMC %","2019 BJP %","2024 TMC %","2024 BJP %"):
+            disp[c] = pd.to_numeric(disp[c], errors="coerce")
+    st.dataframe(disp, use_container_width=True, hide_index=True)
+
+
+def show_parliament_seat(pc_name, pc_data):
+    def _r(key):
+        d = pc_data[key]; sub = d[d["pc_name"] == pc_name]
+        return sub.iloc[0] if len(sub) else None
+
+    r19 = _r("ls19"); r21 = _r("vs21"); r24 = _r("ls24"); r26 = _r("vs26")
+    pc_no = int(r19["pc_no"]) if r19 is not None else "?"
+
+    st.subheader(f"Parliamentary Constituency {pc_no}: {pc_name}")
+
+    # ── Summary table ─────────────────────────────────────────────────────────
+    table, bar_data, seat_data = [], [], []
+    els = [(r19,"2019","Lok Sabha",True), (r21,"2021","Vidhan Sabha",False),
+           (r24,"2024","Lok Sabha",True), (r26,"2026","Vidhan Sabha",False)]
+
+    for r, year, etype, is_ls in els:
+        if r is None: continue
+        tv  = float(r.get("total_votes") or 0)
+        tmc = float(r.get("tmc") or 0)
+        bjp = float(r.get("bjp") or 0)
+        el  = float(r.get("electors") or 0)
+        others = []
+        for i in range(1, 4):
+            p, v = r.get(f"p{i}"), r.get(f"v{i}")
+            if pd.notna(p) and pd.notna(v) and float(v) > 0:
+                others.append(f"{p}: {fmt(v)} ({pct(v, tv)})")
+        row = {
+            "Year": year, "Election": etype,
+            "Registered Voters": fmt(el), "Total Votes": fmt(tv), "Turnout": pct(tv, el),
+            "TMC Votes": fmt(tmc), "TMC %": pct(tmc, tv),
+            "BJP Votes": fmt(bjp), "BJP %": pct(bjp, tv),
+            "Winner": r.get("winner", "—"), "Margin": fmt(r.get("margin")),
+        }
+        if not is_ls:
+            row["TMC ACs"] = int(r.get("tmc_seats", 0))
+            row["BJP ACs"] = int(r.get("bjp_seats", 0))
+            row["Other ACs"] = int(r.get("other_seats", 0))
+            seat_data.append({
+                "Election": f"{year} ({etype[:2]})",
+                "TMC": int(r.get("tmc_seats", 0)),
+                "BJP": int(r.get("bjp_seats", 0)),
+                "Other": int(r.get("other_seats", 0)),
+            })
+        row["Top Others"] = "  |  ".join(others) or "—"
+        table.append(row)
+        try:
+            bar_data += [
+                {"Year": year, "Party": "TMC", "Vote %": tmc / tv * 100},
+                {"Year": year, "Party": "BJP", "Vote %": bjp / tv * 100},
+            ]
+        except ZeroDivisionError:
+            pass
+
+    st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True, height=210)
+
+    # ── Charts row ────────────────────────────────────────────────────────────
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if bar_data:
+            fig = px.bar(
+                pd.DataFrame(bar_data), x="Year", y="Vote %", color="Party",
+                barmode="group", color_discrete_map=_PARTY_COLORS,
+                title="TMC vs BJP Vote Share (%) across Elections",
+            )
+            fig.update_layout(yaxis_range=[0, 100], height=360, margin=dict(t=40, b=10))
+            st.plotly_chart(fig, use_container_width=True)
+    with col_b:
+        if seat_data:
+            sd_melt = pd.melt(
+                pd.DataFrame(seat_data), id_vars="Election",
+                value_vars=["TMC","BJP","Other"], var_name="Party", value_name="Seats",
+            )
+            fig2 = px.bar(
+                sd_melt, x="Election", y="Seats", color="Party",
+                barmode="stack",
+                color_discrete_map={**_PARTY_COLORS, "Other": "#7F7F7F"},
+                text="Seats",
+                title="Assembly Seats Won per Party (Vidhan Sabha elections)",
+            )
+            fig2.update_traces(textposition="inside")
+            fig2.update_layout(height=360, legend_title="", margin=dict(t=40, b=10))
+            st.plotly_chart(fig2, use_container_width=True)
+
+    # ── Per-election breakdown tabs ───────────────────────────────────────────
+    tab19, tab21, tab24, tab26 = st.tabs(["2019 Lok Sabha", "2021 Vidhan Sabha",
+                                           "2024 Lok Sabha", "2026 Vidhan Sabha"])
+    for tab, r, year, etype, is_ls in [
+        (tab19, r19, "2019", "Lok Sabha",    True),
+        (tab21, r21, "2021", "Vidhan Sabha", False),
+        (tab24, r24, "2024", "Lok Sabha",    True),
+        (tab26, r26, "2026", "Vidhan Sabha", False),
+    ]:
+        with tab:
+            if r is None:
+                st.caption("No data available.")
+                continue
+            tv  = float(r.get("total_votes") or 0)
+            tmc = float(r.get("tmc") or 0)
+            bjp = float(r.get("bjp") or 0)
+
+            pie_rows = [{"Party": "TMC", "Votes": tmc}, {"Party": "BJP", "Votes": bjp}]
+            for i in range(1, 4):
+                p, v = r.get(f"p{i}"), r.get(f"v{i}")
+                if pd.notna(p) and pd.notna(v) and float(v) > 0:
+                    pie_rows.append({"Party": str(p), "Votes": float(v)})
+
+            c1, c2 = st.columns([3, 2])
+            with c1:
+                fig = px.pie(
+                    pd.DataFrame(pie_rows), names="Party", values="Votes",
+                    color="Party", color_discrete_map=_PARTY_COLORS,
+                    title=f"{year} {etype} — {pc_name}",
+                    hole=0.35,
+                )
+                fig.update_layout(height=360, margin=dict(t=40, b=10))
+                st.plotly_chart(fig, use_container_width=True)
+            with c2:
+                win = r.get("winner", "—")
+                win_color = _TMC_COLOR if win == "TMC" else (_BJP_COLOR if win == "BJP" else "#7F7F7F")
+                st.markdown(
+                    f"<div style='font-size:1.3rem;font-weight:bold;"
+                    f"color:{win_color};padding:8px 0'>Winner: {win}</div>",
+                    unsafe_allow_html=True,
+                )
+                st.metric("TMC Votes",   fmt(tmc), delta=pct(tmc, tv), delta_color="off")
+                st.metric("BJP Votes",   fmt(bjp), delta=pct(bjp, tv), delta_color="off")
+                st.metric("Margin",      fmt(r.get("margin")))
+                st.metric("Total Votes", fmt(tv))
+                st.metric("Turnout",     pct(tv, r.get("electors") or 1))
+                if not is_ls:
+                    st.metric("TMC ACs Won", int(r.get("tmc_seats", 0)))
+                    st.metric("BJP ACs Won", int(r.get("bjp_seats", 0)))
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -1520,6 +1907,12 @@ def main():
         st.info("Make sure all data files are in the same folder as app.py and run: pip install -r requirements.txt")
         return
 
+    try:
+        pc_data = load_parliament()
+    except Exception as e:
+        pc_data = None
+        st.sidebar.warning(f"Parliamentary data unavailable: {e}")
+
     if "active_section" not in st.session_state:
         st.session_state.active_section = "summary"
 
@@ -1531,10 +1924,11 @@ def main():
         view = st.radio("", [
                             "State Summary", "District Summary", "Constituency Summary",
                             "Margin vs Roll Deletion", "Margin vs SIR Deletion",
+                            "Parliament Summary", "Parliament Seat",
                         ],
                         label_visibility="collapsed", on_change=_on_summary)
 
-        sel_dist, sel_const = None, None
+        sel_dist, sel_const, sel_pc = None, None, None
         if view == "District Summary":
             districts = sorted(df["district"].dropna().unique().tolist())
             sel_dist = st.selectbox("District", districts)
@@ -1544,6 +1938,9 @@ def main():
                 for _, r in df.iterrows()
             )
             sel_const = st.selectbox("Constituency", opts)
+        elif view == "Parliament Seat":
+            pc_names = pc_data["pc_names"] if pc_data else []
+            sel_pc = st.selectbox("Parliamentary Constituency", pc_names)
 
         st.divider()
         st.header("Predictions")
@@ -1564,6 +1961,12 @@ def main():
             show_margin_vs_roll(df)
         elif view == "Margin vs SIR Deletion":
             show_margin_vs_sir(df)
+        elif view == "Parliament Summary":
+            if pc_data: show_parliament_summary(pc_data)
+            else: st.error("Parliamentary data could not be loaded.")
+        elif view == "Parliament Seat" and sel_pc:
+            if pc_data: show_parliament_seat(sel_pc, pc_data)
+            else: st.error("Parliamentary data could not be loaded.")
     else:
         if pred_view == "Predictions":
             show_prediction()
